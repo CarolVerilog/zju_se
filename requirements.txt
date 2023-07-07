@@ -1,0 +1,9 @@
+torch
+nerfacc
+opencv-python
+imageio
+numpy
+tqdm
+scipy
+lpips
+# after automatic installation please manually execute pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
