@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-
+import dearpygui.dearpygui as dpg
+import imageio
 from utils import Rays
 
 device = 'cuda:0'
@@ -62,10 +63,38 @@ class Camera:
 
 class GUI:
     def __init__(self, nerf, H, W) -> None:
-        self.nerf=nerf
-        self.camera=Camera(nerf.train_dataset.K, H, W)
+        self.nerf = nerf
+        self.camera = Camera(nerf.train_dataset.K, H, W)
+        self.render_buffer = np.zeros((W, H, 3), dtype=np.float32)
 
-    def train(self):
-        self.nerf.train(20000)
+        dpg.create_context()
+
+        with dpg.texture_registry(show=False):
+            dpg.add_raw_texture(W, H, self.render_buffer, format=dpg.mvFormat_Float_rgb, tag="texture")
+
+        with dpg.window(tag="primary_window", width=W, height=H):
+            dpg.add_image("texture")
+
+        dpg.set_primary_window("primary_window", True)
+
+        dpg.create_viewport(title='nerfacto', width=W, height=H, resizable=False)
+        dpg.setup_dearpygui()
+        dpg.show_viewport()
 
 
+    def render(self):
+        num_step = 10
+        total_step = 0
+
+        while dpg.is_dearpygui_running():
+            if total_step < self.nerf.max_steps:
+                self.nerf.train(num_step)
+                total_step += num_step
+
+            with torch.no_grad():
+                rays = self.camera.get_rays()
+                rgb = self.nerf.eval(rays)
+
+                dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
+
+            dpg.render_dearpygui_frame()

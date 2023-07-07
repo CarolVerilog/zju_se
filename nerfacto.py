@@ -34,6 +34,8 @@ class NeRFacto:
         unbounded=True,
         aabb=torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0]),
     ) -> None:
+        # train settings
+        self.max_steps = max_steps
         # dataset parameters
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -71,6 +73,7 @@ class NeRFacto:
             **test_dataset_kwargs,
         )
 
+        self.render_bkgd = self.test_dataset[0]['color_bkgd']
         # setup the radiance field we want to train.
         self.prop_optimizer = torch.optim.Adam(
             itertools.chain(
@@ -132,9 +135,8 @@ class NeRFacto:
         self,
         num_steps=16,
     ):
-        import tqdm
         # training
-        for step in tqdm.tqdm(range(num_steps)):
+        for step in range(num_steps):
             self.radiance_field.train()
             for p in self.proposal_networks:
                 p.train()
@@ -174,6 +176,25 @@ class NeRFacto:
             self.grad_scaler.scale(loss).backward()
             self.optimizer.step()
             self.scheduler.step()
+
+    def eval(self, rays: Rays):
+        self.radiance_field.eval()
+        for p in self.proposal_networks:
+            p.eval()
+        self.estimator.eval()
+
+        rgb, _, _, _ = self.render(
+            rays,
+            num_samples=48,
+            num_samples_per_prop=[256, 9],
+            near_plane=0.2,
+            far_plane=1e3,
+            sampling_type='lindisp',
+            opaque_bkgd=True,
+            render_bkgd=self.render_bkgd,
+        )
+
+        return rgb
 
     def render(
         self,

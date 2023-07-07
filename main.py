@@ -27,5 +27,5 @@ parser.add_argument(
 
 args = parser.parse_args()
 nerf = NeRFacto(args.data_root, args.train_split, args.scene)
-gui = GUI(nerf, 800, 600)
-gui.train()
+gui = GUI(nerf, 1024, 1024)
+gui.render()
