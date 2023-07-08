@@ -1,6 +1,7 @@
 import itertools
 from typing import Optional, Sequence, Literal
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
@@ -212,6 +213,42 @@ class NeRFacto:
         )
 
         return rgb
+
+    def test(self):
+        # evaluation
+        self.radiance_field.eval()
+        for p in self.proposal_networks:
+            p.eval()
+        self.estimator.eval()
+
+        psnrs = []
+        lpips = []
+        with torch.no_grad():
+            for i in range(len(self.test_dataset)):
+                data = self.test_dataset[i]
+                render_bkgd = data["color_bkgd"]
+                rays = data["rays"]
+                pixels = data["pixels"]
+
+                # rendering
+                rgb, _, _, _, = self.render(
+                    rays,
+                    # rendering options
+                    num_samples=self.render_num_samples,
+                    num_samples_per_prop=self.render_num_samples_per_prop,
+                    near_plane=self.render_near_plane,
+                    far_plane=self.render_far_plane,
+                    render_bkgd=render_bkgd,
+                    # test options
+                    test_chunk_size=self.render_chunk_size,
+                )
+                mse = F.mse_loss(rgb, pixels)
+                psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                psnrs.append(psnr.item())
+                lpips.append(self.lpips_fn(rgb, pixels).item())
+        psnr_avg = sum(psnrs) / len(psnrs)
+        lpips_avg = sum(lpips) / len(lpips)
+        print(f"evaluation: psnr_avg={psnr_avg}, lpips_avg={lpips_avg}")
 
     def render(
         self,
