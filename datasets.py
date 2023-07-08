@@ -9,6 +9,7 @@ import tqdm
 from pycolmap.scene_manager import SceneManager
 from utils import Rays
 
+
 def _load_colmap(root_fp: str, subject_id: str, factor: int = 1):
     assert factor in [1, 2, 4, 8]
 
@@ -108,9 +109,7 @@ def _load_colmap(root_fp: str, subject_id: str, factor: int = 1):
     colmap_files = sorted(os.listdir(colmap_image_dir))
     image_files = sorted(os.listdir(image_dir))
     colmap_to_image = dict(zip(colmap_files, image_files))
-    image_paths = [
-        os.path.join(image_dir, colmap_to_image[f]) for f in image_names
-    ]
+    image_paths = [os.path.join(image_dir, colmap_to_image[f]) for f in image_names]
     print("loading images")
     images = [imageio.imread(x) for x in tqdm.tqdm(image_paths)]
     images = np.stack(images, axis=0)
@@ -218,18 +217,14 @@ class DataLoader(torch.utils.data.Dataset):
         self.num_rays = num_rays
         self.near = near
         self.far = far
-        self.training = (num_rays is not None) and (
-            split in ["train", "trainval"]
-        )
+        self.training = (num_rays is not None) and (split in ["train", "trainval"])
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
         self.images, self.camtoworlds, self.K, split_indices = _load_colmap(
             root_fp, subject_id, factor
         )
         # normalize the scene
-        T, sscale = similarity_from_cameras(
-            self.camtoworlds, strict_scaling=False
-        )
+        T, sscale = similarity_from_cameras(self.camtoworlds, strict_scaling=False)
         self.camtoworlds = np.einsum("nij, ki -> nkj", self.camtoworlds, T)
         self.camtoworlds[:, :3, 3] *= sscale
         # split
@@ -326,9 +321,7 @@ class DataLoader(torch.utils.data.Dataset):
         # [num_rays, 3]
         directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
         origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
-        viewdirs = directions / torch.linalg.norm(
-            directions, dim=-1, keepdims=True
-        )
+        viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
 
         if self.training:
             origins = torch.reshape(origins, (num_rays, 3))

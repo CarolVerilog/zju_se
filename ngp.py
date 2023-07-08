@@ -133,11 +133,7 @@ class NGPRadianceField(torch.nn.Module):
         if self.geo_feat_dim > 0:
             self.mlp_head = tcnn.Network(
                 n_input_dims=(
-                    (
-                        self.direction_encoding.n_output_dims
-                        if self.use_viewdirs
-                        else 0
-                    )
+                    (self.direction_encoding.n_output_dims if self.use_viewdirs else 0)
                     + self.geo_feat_dim
                 ),
                 n_output_dims=3,
@@ -166,8 +162,7 @@ class NGPRadianceField(torch.nn.Module):
             x, [1, self.geo_feat_dim], dim=-1
         )
         density = (
-            self.density_activation(density_before_activation)
-            * selector[..., None]
+            self.density_activation(density_before_activation) * selector[..., None]
         )
         if return_feat:
             return density, base_mlp_out
@@ -182,11 +177,7 @@ class NGPRadianceField(torch.nn.Module):
             h = torch.cat([d, embedding.reshape(-1, self.geo_feat_dim)], dim=-1)
         else:
             h = embedding.reshape(-1, self.geo_feat_dim)
-        rgb = (
-            self.mlp_head(h)
-            .reshape(list(embedding.shape[:-1]) + [3])
-            .to(embedding)
-        )
+        rgb = self.mlp_head(h).reshape(list(embedding.shape[:-1]) + [3]).to(embedding)
         if apply_act:
             rgb = torch.sigmoid(rgb)
         return rgb
@@ -268,7 +259,6 @@ class NGPDensityField(torch.nn.Module):
             .to(positions)
         )
         density = (
-            self.density_activation(density_before_activation)
-            * selector[..., None]
+            self.density_activation(density_before_activation) * selector[..., None]
         )
         return density
