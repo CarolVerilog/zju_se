@@ -24,6 +24,7 @@ from nerfacc.volrend import rendering
 device = "cuda:0"
 set_random_seed(42)
 
+
 class NeRFacto:
     def __init__(
         self,
@@ -73,8 +74,9 @@ class NeRFacto:
             **test_dataset_kwargs,
         )
 
-        self.height, self.width, _ = self.test_dataset[0]['rays'].origins.shape
-        self.render_bkgd = self.test_dataset[0]['color_bkgd']
+        self.K = self.test_dataset.K
+        self.height, self.width, _ = self.test_dataset[0]["rays"].origins.shape
+        self.render_bkgd = self.test_dataset[0]["color_bkgd"]
         # setup the radiance field we want to train.
         self.prop_optimizer = torch.optim.Adam(
             itertools.chain(
@@ -100,10 +102,14 @@ class NeRFacto:
                 ),
             ]
         )
-        self.estimator = PropNetEstimator(self.prop_optimizer, self.prop_scheduler).to(device)
+        self.estimator = PropNetEstimator(self.prop_optimizer, self.prop_scheduler).to(
+            device
+        )
 
         self.grad_scaler = torch.cuda.amp.GradScaler(2**10)
-        self.radiance_field = NGPRadianceField(aabb=aabb, unbounded=unbounded).to(device)
+        self.radiance_field = NGPRadianceField(aabb=aabb, unbounded=unbounded).to(
+            device
+        )
         self.optimizer = torch.optim.Adam(
             self.radiance_field.parameters(),
             lr=1e-2,
@@ -130,7 +136,9 @@ class NeRFacto:
 
         lpips_net = LPIPS(net="vgg").to(device)
         lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
-        self.lpips_fn = lambda x, y: lpips_net(lpips_norm_fn(x), lpips_norm_fn(y)).mean()
+        self.lpips_fn = lambda x, y: lpips_net(
+            lpips_norm_fn(x), lpips_norm_fn(y)
+        ).mean()
 
     def train(
         self,
@@ -159,7 +167,7 @@ class NeRFacto:
                 num_samples_per_prop=[256, 9],
                 near_plane=0.2,
                 far_plane=1e3,
-                sampling_type='lindisp',
+                sampling_type="lindisp",
                 opaque_bkgd=True,
                 render_bkgd=render_bkgd,
                 # train options
@@ -190,7 +198,7 @@ class NeRFacto:
             num_samples_per_prop=[256, 9],
             near_plane=0.2,
             far_plane=1e3,
-            sampling_type='lindisp',
+            sampling_type="lindisp",
             opaque_bkgd=True,
             render_bkgd=self.render_bkgd,
         )
@@ -244,16 +252,13 @@ class NeRFacto:
             return rgb, sigmas.squeeze(-1)
 
         results = []
-        chunk = (
-            torch.iinfo(torch.int32).max
-            if self.radiance_field.training
-            else 8192
-        )
+        chunk = torch.iinfo(torch.int32).max if self.radiance_field.training else 8192
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
             t_starts, t_ends = self.estimator.sampling(
                 prop_sigma_fns=[
-                    lambda *args: prop_sigma_fn(*args, p) for p in self.proposal_networks
+                    lambda *args: prop_sigma_fn(*args, p)
+                    for p in self.proposal_networks
                 ],
                 prop_samples=num_samples_per_prop,
                 num_samples=num_samples,
