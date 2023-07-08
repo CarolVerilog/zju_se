@@ -73,6 +73,7 @@ class NeRFacto:
             **test_dataset_kwargs,
         )
 
+        self.height, self.width, _ = self.test_dataset[0]['rays'].origins.shape
         self.render_bkgd = self.test_dataset[0]['color_bkgd']
         # setup the radiance field we want to train.
         self.prop_optimizer = torch.optim.Adam(
