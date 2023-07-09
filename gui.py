@@ -552,6 +552,8 @@ class GUI:
                             psnr, lpips = self.nerf.test()
                             json_data["psnr"] = psnr
                             json_data["lpips"] = lpips
+                            json_data["iter"] = self.nerf.max_steps
+                            json_data["time"] = training_time
                             json_data["video"] = file_name + ".mp4"
 
                             json_file = open(file_name + ".json", "w")
