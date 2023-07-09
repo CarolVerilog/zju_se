@@ -5,13 +5,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--width",
     type=int,
-    default=800,
+    default=1920,
     help="window width",
 )
 parser.add_argument(
     "--height",
     type=int,
-    default=600,
+    default=1080,
     help="window height",
 )
 args = parser.parse_args()

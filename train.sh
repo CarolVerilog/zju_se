@@ -1,2 +1,2 @@
 export PYTHONPATH=PYTHONPATH:pycolmap:pycolmap/pycolmap
-python main.py --width 800 --height 600
+python main.py --width 1920 --height 1080

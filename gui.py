@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation as R
 
 import dearpygui.dearpygui as dpg
 import imageio
+import tqdm
 
 from utils import Rays
 from nerfacto import NeRFacto
@@ -97,9 +98,7 @@ class Camera:
         self.view_dirty = True
 
     def rotate(self, axis, angle):
-        rotation = torch.Tensor(
-            R.from_rotvec(axis * np.deg2rad(angle)).as_matrix()
-        )
+        rotation = torch.Tensor(R.from_rotvec(axis * np.deg2rad(angle)).as_matrix())
         self.down = rotation @ self.down
         self.right = rotation @ self.right
         self.look = rotation @ self.look
@@ -215,7 +214,7 @@ class GUI:
         with dpg.window(
             label="Control",
             tag="control_window",
-            width=self.width // 2,
+            width=self.width // 3,
             height=self.height // 2,
         ):
             dpg.add_text(default_value=f"FPS: {0}, MSPF: {0.0}", tag="fps")
@@ -229,7 +228,7 @@ class GUI:
                     )
 
                     with dpg.plot(
-                        label="Loss", width=self.width // 3, height=self.height // 4
+                        label="Loss", width=self.width // 3 - 10, height=self.height // 4
                     ):
                         dpg.add_plot_legend()
                         dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
@@ -479,9 +478,14 @@ class GUI:
             dpg.set_primary_window("primary_window", True)
 
         dpg.create_viewport(
-            title="nerfacto", width=self.width, height=self.height, resizable=False
+            title="nerfacto",
+            width=self.width,
+            height=self.height,
+            resizable=False,
+            decorated=False,
         )
         dpg.setup_dearpygui()
+        dpg.maximize_viewport()
         dpg.show_viewport()
 
     def render(self):
@@ -536,31 +540,46 @@ class GUI:
                             dpg.set_value("modal_text", "Testing NeRF...")
                             dpg.configure_item("modal", show=True)
 
-                            file_name=self.nerf.scene+"_"+datetime.datetime.strftime(datetime.datetime.now(), "%y-%m-%d_%H:%M:%S")
+                            file_name = (
+                                self.nerf.scene
+                                + "_"
+                                + datetime.datetime.strftime(
+                                    datetime.datetime.now(), "%y-%m-%d_%H:%M:%S"
+                                )
+                            )
                             json_data = {}
 
                             psnr, lpips = self.nerf.test()
-                            json_data["psnr"]=psnr
-                            json_data["lpips"]=lpips
-                            json_data["video"]=file_name+".mp4"
+                            json_data["psnr"] = psnr
+                            json_data["lpips"] = lpips
+                            json_data["video"] = file_name + ".mp4"
 
-                            json_file=open(file_name+".json","w")
+                            json_file = open(file_name + ".json", "w")
                             json.dump(json_data, json_file)
 
-                            self.camera.walk(-1)
-                            rgbs=[]
-                            for _ in torch.linspace(-180, 180, 60):
-                                self.camera.rotate(torch.Tensor([0,1,0]), 4)
-                                self.camera.update()
-                                rgb=self.nerf.eval(self.camera.rays)
-                                rgbs.append(rgb)
+                            rgbs = []
+                            print("rendering video")
 
-                            rgbs=torch.stack(rgbs, 0)
-                            print(rgbs.shape)
-                            imageio.mimwrite(json_data["video"], (rgbs*255).cpu().numpy(), fps=30, quality=8)
+                            for i in tqdm.tqdm(range(60)):
+                                self.camera.yaw(360 / 60)
+                                self.camera.walk(-0.6)
+                                self.camera.update()
+
+                                rgb = self.nerf.eval(self.camera.rays)
+                                rgbs.append(rgb)
+                                self.camera.walk(0.6)
+
+                            rgbs = torch.stack(rgbs, 0)
+                            imageio.mimwrite(
+                                json_data["video"],
+                                (rgbs * 255).cpu().numpy().astype(np.uint8),
+                                fps=30,
+                                quality=8,
+                            )
 
                             dpg.configure_item("modal", show=False)
 
+                        torch.cuda.empty_cache()
                         thread = threading.Thread(target=test)
                         thread.start()
 

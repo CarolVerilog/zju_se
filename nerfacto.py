@@ -204,14 +204,15 @@ class NeRFacto:
             p.eval()
         self.estimator.eval()
 
-        rgb, _, _, _ = self.render(
-            rays,
-            num_samples=self.render_num_samples,
-            num_samples_per_prop=self.render_num_samples_per_prop,
-            near_plane=self.render_near_plane,
-            far_plane=self.render_far_plane,
-            render_bkgd=self.render_bkgd,
-        )
+        with torch.no_grad():
+            rgb, _, _, _ = self.render(
+                rays,
+                num_samples=self.render_num_samples,
+                num_samples_per_prop=self.render_num_samples_per_prop,
+                near_plane=self.render_near_plane,
+                far_plane=self.render_far_plane,
+                render_bkgd=self.render_bkgd,
+            )
 
         return rgb
 
@@ -225,6 +226,7 @@ class NeRFacto:
         psnrs = []
         lpips = []
         with torch.no_grad():
+            print("testing nerf")
             for i in tqdm.tqdm(range(len(self.test_dataset))):
                 data = self.test_dataset[i]
                 render_bkgd = data["color_bkgd"]
@@ -232,7 +234,12 @@ class NeRFacto:
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, _, _, _, = self.render(
+                (
+                    rgb,
+                    _,
+                    _,
+                    _,
+                ) = self.render(
                     rays,
                     # rendering options
                     num_samples=self.render_num_samples,
