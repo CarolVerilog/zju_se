@@ -1,9 +1,15 @@
+import time
+import datetime
+import threading
+import json
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy.spatial.transform import Rotation as R
 
 import dearpygui.dearpygui as dpg
+import imageio
 
 from utils import Rays
 from nerfacto import NeRFacto
@@ -90,6 +96,15 @@ class Camera:
         self.look = rotation @ self.look
         self.view_dirty = True
 
+    def rotate(self, axis, angle):
+        rotation = torch.Tensor(
+            R.from_rotvec(axis * np.deg2rad(angle)).as_matrix()
+        )
+        self.down = rotation @ self.down
+        self.right = rotation @ self.right
+        self.look = rotation @ self.look
+        self.view_dirty = True
+
     def update(self):
         if self.view_dirty:
             self.look = F.normalize(self.look, p=2, dim=0)
@@ -129,6 +144,7 @@ class GUI:
         self.last_mouse_y = 0
         self.start = False
         self.training = False
+        self.rendering = False
 
         dpg.create_context()
 
@@ -185,13 +201,44 @@ class GUI:
             )
 
         with dpg.window(
+            modal=True,
+            show=False,
+            tag="modal",
+            no_title_bar=True,
+            no_move=True,
+            width=width // 4,
+            height=height // 4,
+            pos=[width // 2 - width // 8, height // 2 - height // 8],
+        ):
+            dpg.add_text("", tag="modal_text")
+
+        with dpg.window(
             label="Control",
             tag="control_window",
-            width=self.width // 3,
+            width=self.width // 2,
             height=self.height // 2,
         ):
-            with dpg.collapsing_header(label="Train", default_open=True):
-                with dpg.collapsing_header(label="Static", default_open=True):
+            dpg.add_text(default_value=f"FPS: {0}, MSPF: {0.0}", tag="fps")
+            with dpg.collapsing_header(label="Train", default_open=False):
+                with dpg.group(horizontal=False):
+                    dpg.add_text(
+                        default_value=f"Iter: {0}/{self.nerf.max_steps}", tag="iter"
+                    )
+                    dpg.add_text(
+                        default_value="Training time: 00:00:000", tag="training_time"
+                    )
+
+                    with dpg.plot(
+                        label="Loss", width=self.width // 3, height=self.height // 4
+                    ):
+                        dpg.add_plot_legend()
+                        dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
+                        dpg.add_plot_axis(dpg.mvYAxis, label="loss", tag="loss_axis")
+                        dpg.add_line_series(
+                            [], [], tag="loss_series", parent="loss_axis"
+                        )
+
+                with dpg.collapsing_header(label="Static", default_open=False):
                     with dpg.group(horizontal=False):
 
                         def callback_data_root(sender, appdata):
@@ -226,6 +273,7 @@ class GUI:
 
                         def callback_max_steps(sender, appdata):
                             self.nerf.max_steps = appdata
+                            dpg.set_value("iter", f"Iter: {0}/{self.nerf.max_steps}")
 
                         dpg.add_input_int(
                             label="Max steps",
@@ -274,7 +322,7 @@ class GUI:
                             callback=callback_train_num_rays,
                         )
 
-                with dpg.collapsing_header(label="Dynamic", default_open=True):
+                with dpg.collapsing_header(label="Dynamic", default_open=False):
                     with dpg.group(horizontal=False):
 
                         def callback_train_num_samples(sender, appdata):
@@ -327,7 +375,17 @@ class GUI:
                             callback=callback_train_far_plane,
                         )
 
-            with dpg.collapsing_header(label="Render", default_open=True):
+            with dpg.collapsing_header(label="Render", default_open=False):
+
+                def callback_rendering(sender, appdata):
+                    self.rendering = not self.rendering
+
+                dpg.add_checkbox(
+                    label="Rendering",
+                    tag="rendering",
+                    default_value=False,
+                    callback=callback_rendering,
+                )
 
                 def callback_render_num_samples(sender, appdata):
                     self.nerf.render_num_samples = appdata
@@ -335,7 +393,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Ray samples",
                     tag="render_num_samples",
-                    default_value=16,
+                    default_value=48,
                     callback=callback_render_num_samples,
                 )
 
@@ -345,7 +403,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 0 samples",
                     tag="render_num_samples_prop0",
-                    default_value=16,
+                    default_value=256,
                     callback=callback_render_num_samples_prop0,
                 )
 
@@ -380,7 +438,7 @@ class GUI:
                 )
 
                 def callback_render_chunk(sender, appdata):
-                    self.nerf.render_chunk = appdata
+                    self.nerf.render_chunk_size = appdata
 
                 dpg.add_input_int(
                     label="Rays chunk",
@@ -399,8 +457,14 @@ class GUI:
                     dpg.disable_item("eps")
                     dpg.disable_item("weight_decay")
                     dpg.disable_item("train_num_rays")
+
+                    dpg.set_value("modal_text", "Loading Data...")
+                    dpg.configure_item("modal", show=True)
                     self.nerf.populate()
+                    dpg.configure_item("modal", show=False)
+
                     self.start = True
+
                 if self.training:
                     self.training = False
                     dpg.configure_item("button_train", label="start")
@@ -421,20 +485,104 @@ class GUI:
         dpg.show_viewport()
 
     def render(self):
-        num_step = 10
-        total_step = 0
+        step = 0
+        training_time = 0
+        frame_count = 0
+        elapsed_time = 0.0
+        iters = []
+        losses = []
 
         while dpg.is_dearpygui_running():
-            self.camera.update()
-
-            if self.training and total_step < self.nerf.max_steps:
-                self.nerf.train(num_step)
-                total_step += num_step
+            frame_time = time.time()
 
             if self.start:
-                with torch.no_grad():
-                    pass
-                    rgb = self.nerf.eval(self.camera.rays)
-                    dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
+                if self.training and step < self.nerf.max_steps:
+                    iters.append(step)
+
+                    starter, ender = torch.cuda.Event(
+                        enable_timing=True
+                    ), torch.cuda.Event(enable_timing=True)
+                    starter.record()
+
+                    losses.append(self.nerf.train(step))
+
+                    ender.record()
+                    torch.cuda.synchronize()
+                    training_time += int(starter.elapsed_time(ender))
+
+                    secs = training_time // 1000
+                    m = secs // 60
+                    s = secs % 60
+                    ms = training_time % 1000
+
+                    dpg.set_value(
+                        "training_time",
+                        f"Training time: {m:02d}:{s:02d}:{ms:03d}",
+                    )
+
+                    step += 1
+                    dpg.set_value("iter", f"Iter: {step}/{self.nerf.max_steps}")
+                    dpg.set_value("loss_series", [iters, losses])
+
+                    plot_iters_left = max(0, step - 1000)
+                    plot_iters_right = step
+                    plot_losses = losses[plot_iters_left:plot_iters_right]
+                    dpg.set_axis_limits("iter_axis", plot_iters_left, plot_iters_right)
+                    dpg.set_axis_limits("loss_axis", min(plot_losses), max(plot_losses))
+
+                    if step >= self.nerf.max_steps:
+
+                        def test():
+                            dpg.set_value("modal_text", "Testing NeRF...")
+                            dpg.configure_item("modal", show=True)
+
+                            file_name=self.nerf.scene+"_"+datetime.datetime.strftime(datetime.datetime.now(), "%y-%m-%d_%H:%M:%S")
+                            json_data = {}
+
+                            psnr, lpips = self.nerf.test()
+                            json_data["psnr"]=psnr
+                            json_data["lpips"]=lpips
+                            json_data["video"]=file_name+".mp4"
+
+                            json_file=open(file_name+".json","w")
+                            json.dump(json_data, json_file)
+
+                            self.camera.walk(-1)
+                            rgbs=[]
+                            for _ in torch.linspace(-180, 180, 60):
+                                self.camera.rotate(torch.Tensor([0,1,0]), 4)
+                                self.camera.update()
+                                rgb=self.nerf.eval(self.camera.rays)
+                                rgbs.append(rgb)
+
+                            rgbs=torch.stack(rgbs, 0)
+                            print(rgbs.shape)
+                            imageio.mimwrite(json_data["video"], (rgbs*255).cpu().numpy(), fps=30, quality=8)
+
+                            dpg.configure_item("modal", show=False)
+
+                        thread = threading.Thread(target=test)
+                        thread.start()
+
+                        dpg.configure_item("button_train", label="train")
+                        dpg.disable_item("button_train")
+                else:
+                    dpg.set_axis_limits_auto("iter_axis")
+                    dpg.set_axis_limits_auto("loss_axis")
+
+                if self.rendering:
+                    self.camera.update()
+                    with torch.no_grad():
+                        rgb = self.nerf.eval(self.camera.rays)
+                        dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
 
             dpg.render_dearpygui_frame()
+
+            frame_time = time.time() - frame_time
+            elapsed_time += frame_time
+            frame_count += 1
+
+            if elapsed_time >= 1.0:
+                dpg.set_value("fps", f"FPS: {frame_count} MSPF: {1000/frame_count:.2f}")
+                elapsed_time = 0.0
+                frame_count = 0

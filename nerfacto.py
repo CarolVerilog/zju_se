@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 from lpips import LPIPS
+import tqdm
 
 from ngp import NGPDensityField, NGPRadianceField
 from datasets import DataLoader
@@ -49,7 +50,7 @@ class NeRFacto:
         self.render_num_samples_per_prop = [256, 9]
         self.render_near_plane = 0.2
         self.render_far_plane = 1e3
-        self.render_chunk = 8192
+        self.render_chunk_size = 8192
 
     def populate(self) -> None:
         # dataset parameters
@@ -155,47 +156,47 @@ class NeRFacto:
 
     def train(
         self,
-        num_steps=16,
+        step,
     ):
-        # training
-        for step in range(num_steps):
-            self.radiance_field.train()
-            for p in self.proposal_networks:
-                p.train()
-            self.estimator.train()
+        self.radiance_field.train()
+        for p in self.proposal_networks:
+            p.train()
+        self.estimator.train()
 
-            i = torch.randint(0, len(self.train_dataset), (1,)).item()
-            data = self.train_dataset[i]
+        i = torch.randint(0, len(self.train_dataset), (1,)).item()
+        data = self.train_dataset[i]
 
-            render_bkgd = data["color_bkgd"]
-            rays = data["rays"]
-            pixels = data["pixels"]
+        render_bkgd = data["color_bkgd"]
+        rays = data["rays"]
+        pixels = data["pixels"]
 
-            proposal_requires_grad = self.proposal_requires_grad_fn(step)
-            # render
-            rgb, _, _, extras = self.render(
-                rays,
-                # rendering options
-                num_samples=self.train_num_samples,
-                num_samples_per_prop=self.train_num_samples_per_prop,
-                near_plane=self.train_near_plane,
-                far_plane=self.train_far_plane,
-                render_bkgd=render_bkgd,
-                # train options
-                proposal_requires_grad=proposal_requires_grad,
-            )
-            self.estimator.update_every_n_steps(
-                extras["trans"], proposal_requires_grad, loss_scaler=1024
-            )
+        proposal_requires_grad = self.proposal_requires_grad_fn(step)
+        # render
+        rgb, _, _, extras = self.render(
+            rays,
+            # rendering options
+            num_samples=self.train_num_samples,
+            num_samples_per_prop=self.train_num_samples_per_prop,
+            near_plane=self.train_near_plane,
+            far_plane=self.train_far_plane,
+            render_bkgd=render_bkgd,
+            # train options
+            proposal_requires_grad=proposal_requires_grad,
+        )
+        self.estimator.update_every_n_steps(
+            extras["trans"], proposal_requires_grad, loss_scaler=1024
+        )
 
-            # compute loss
-            loss = F.smooth_l1_loss(rgb, pixels)
+        # compute loss
+        loss = F.smooth_l1_loss(rgb, pixels)
 
-            self.optimizer.zero_grad()
-            # do not unscale it because we are using Adam.
-            self.grad_scaler.scale(loss).backward()
-            self.optimizer.step()
-            self.scheduler.step()
+        self.optimizer.zero_grad()
+        # do not unscale it because we are using Adam.
+        self.grad_scaler.scale(loss).backward()
+        self.optimizer.step()
+        self.scheduler.step()
+
+        return loss.item()
 
     def eval(self, rays: Rays):
         self.radiance_field.eval()
@@ -224,7 +225,7 @@ class NeRFacto:
         psnrs = []
         lpips = []
         with torch.no_grad():
-            for i in range(len(self.test_dataset)):
+            for i in tqdm.tqdm(range(len(self.test_dataset))):
                 data = self.test_dataset[i]
                 render_bkgd = data["color_bkgd"]
                 rays = data["rays"]
@@ -239,8 +240,6 @@ class NeRFacto:
                     near_plane=self.render_near_plane,
                     far_plane=self.render_far_plane,
                     render_bkgd=render_bkgd,
-                    # test options
-                    test_chunk_size=self.render_chunk_size,
                 )
                 mse = F.mse_loss(rgb, pixels)
                 psnr = -10.0 * torch.log(mse) / np.log(10.0)
@@ -248,7 +247,7 @@ class NeRFacto:
                 lpips.append(self.lpips_fn(rgb, pixels).item())
         psnr_avg = sum(psnrs) / len(psnrs)
         lpips_avg = sum(lpips) / len(lpips)
-        print(f"evaluation: psnr_avg={psnr_avg}, lpips_avg={lpips_avg}")
+        return psnr_avg, lpips_avg
 
     def render(
         self,
@@ -296,7 +295,7 @@ class NeRFacto:
         chunk = (
             torch.iinfo(torch.int32).max
             if self.radiance_field.training
-            else self.render_chunk
+            else self.render_chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)

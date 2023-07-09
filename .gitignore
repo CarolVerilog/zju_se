@@ -1,5 +1,7 @@
 .vscode/
 __pycache__/
 data
+*.json
 *.png
 *.mp4
+test.py
