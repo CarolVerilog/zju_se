@@ -46,6 +46,14 @@ class NeRFacto:
         self.train_near_plane = 0.2
         self.train_far_plane = 1e3
 
+        # test settings
+        self.test_num_samples = 48
+        self.test_num_samples_per_prop = [256, 9]
+        self.test_near_plane = 0.2
+        self.test_far_plane = 1e3
+        self.test_chunk_size = 8192
+
+        # render settings
         self.render_num_samples = 48
         self.render_num_samples_per_prop = [256, 9]
         self.render_near_plane = 0.2
@@ -207,6 +215,24 @@ class NeRFacto:
         with torch.no_grad():
             rgb, _, _, _ = self.render(
                 rays,
+                num_samples=self.test_num_samples,
+                num_samples_per_prop=self.test_num_samples_per_prop,
+                near_plane=self.test_near_plane,
+                far_plane=self.test_far_plane,
+                render_bkgd=self.render_bkgd,
+            )
+
+        return rgb
+
+    def render(self, rays: Rays):
+        self.radiance_field.eval()
+        for p in self.proposal_networks:
+            p.eval()
+        self.estimator.eval()
+
+        with torch.no_grad():
+            rgb, _, _, _ = self.render(
+                rays,
                 num_samples=self.render_num_samples,
                 num_samples_per_prop=self.render_num_samples_per_prop,
                 near_plane=self.render_near_plane,
@@ -242,10 +268,10 @@ class NeRFacto:
                 ) = self.render(
                     rays,
                     # rendering options
-                    num_samples=self.render_num_samples,
-                    num_samples_per_prop=self.render_num_samples_per_prop,
-                    near_plane=self.render_near_plane,
-                    far_plane=self.render_far_plane,
+                    num_samples=self.test_num_samples,
+                    num_samples_per_prop=self.test_num_samples_per_prop,
+                    near_plane=self.test_near_plane,
+                    far_plane=self.test_far_plane,
                     render_bkgd=render_bkgd,
                 )
                 mse = F.mse_loss(rgb, pixels)

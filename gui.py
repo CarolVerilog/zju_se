@@ -75,7 +75,7 @@ class Camera:
 
     def pitch(self, angle):
         rotation = torch.Tensor(
-            R.from_rotvec(self.right * np.deg2rad(-angle)).as_matrix()
+            R.from_rotvec(self.right * np.deg2rad(angle)).as_matrix()
         )
         self.down = rotation @ self.down
         self.look = rotation @ self.look
@@ -144,6 +144,9 @@ class GUI:
         self.start = False
         self.training = False
         self.rendering = False
+        self.test_video_camera_dist = 0.6
+        self.test_video_camera_pitch = 0.0
+        self.test_video_length = 2.0
 
         dpg.create_context()
 
@@ -182,7 +185,7 @@ class GUI:
             dx, dy = app_data[1] - self.last_mouse_x, app_data[2] - self.last_mouse_y
             self.last_mouse_x, self.last_mouse_y = app_data[1], app_data[2]
             self.camera.yaw(dx * 0.05)
-            self.camera.pitch(dy * 0.05)
+            self.camera.pitch(-dy * 0.05)
 
         def mouse_release(sender, app_data):
             if not dpg.is_item_focused("primary_window"):
@@ -228,7 +231,9 @@ class GUI:
                     )
 
                     with dpg.plot(
-                        label="Loss", width=self.width // 3 - 10, height=self.height // 4
+                        label="Loss",
+                        width=self.width // 3 - 10,
+                        height=self.height // 4,
                     ):
                         dpg.add_plot_legend()
                         dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
@@ -237,7 +242,6 @@ class GUI:
                             [], [], tag="loss_series", parent="loss_axis"
                         )
 
-                with dpg.collapsing_header(label="Static", default_open=False):
                     with dpg.group(horizontal=False):
 
                         def callback_data_root(sender, appdata):
@@ -321,9 +325,6 @@ class GUI:
                             callback=callback_train_num_rays,
                         )
 
-                with dpg.collapsing_header(label="Dynamic", default_open=False):
-                    with dpg.group(horizontal=False):
-
                         def callback_train_num_samples(sender, appdata):
                             self.nerf.train_num_samples = appdata
 
@@ -373,6 +374,98 @@ class GUI:
                             default_value=1e3,
                             callback=callback_train_far_plane,
                         )
+
+            with dpg.collapsing_header(label="Test", default_open=False):
+
+                def callback_test_video_camera_dist(sender, appdata):
+                    self.test_video_camera_dist = appdata
+
+                dpg.add_input_float(
+                    label="Video camera dist",
+                    tag="test_video_camera_dist",
+                    default_value=0.6,
+                    callback=callback_test_video_camera_dist,
+                )
+
+                def callback_test_video_camera_pitch(sender, appdata):
+                    self.test_video_camera_pitch = appdata
+
+                dpg.add_input_float(
+                    label="Video camera pitch",
+                    tag="test_video_camera_pitch",
+                    default_value=0.0,
+                    callback=callback_test_video_camera_pitch,
+                )
+
+                def callback_test_video_length(sender, appdata):
+                    self.test_video_length = appdata
+
+                dpg.add_input_float(
+                    label="Video length",
+                    tag="test_video_length",
+                    default_value=2.0,
+                    callback=callback_test_video_length,
+                )
+
+                def callback_test_num_samples(sender, appdata):
+                    self.nerf.test_num_samples = appdata
+
+                dpg.add_input_int(
+                    label="Ray samples",
+                    tag="test_num_samples",
+                    default_value=48,
+                    callback=callback_test_num_samples,
+                )
+
+                def callback_test_num_samples_prop0(sender, appdata):
+                    self.nerf.test_num_samples_per_prop[0] = appdata
+
+                dpg.add_input_int(
+                    label="Prop 0 samples",
+                    tag="test_num_samples_prop0",
+                    default_value=256,
+                    callback=callback_test_num_samples_prop0,
+                )
+
+                def callback_test_num_samples_prop1(sender, appdata):
+                    self.nerf.test_num_samples_per_prop[1] = appdata
+
+                dpg.add_input_int(
+                    label="Prop 1 samples",
+                    tag="test_num_samples_prop1",
+                    default_value=9,
+                    callback=callback_test_num_samples_prop1,
+                )
+
+                def callback_test_near_plane(sender, appdata):
+                    self.nerf.test_near_plane = appdata
+
+                dpg.add_input_float(
+                    label="Near plane",
+                    tag="test_near_plane",
+                    default_value=0.2,
+                    callback=callback_test_near_plane,
+                )
+
+                def callback_test_far_plane(sender, appdata):
+                    self.nerf.test_far_plane = appdata
+
+                dpg.add_input_float(
+                    label="Far plane",
+                    tag="test_far_plane",
+                    default_value=1e3,
+                    callback=callback_test_far_plane,
+                )
+
+                def callback_test_chunk(sender, appdata):
+                    self.nerf.test_chunk_size = appdata
+
+                dpg.add_input_int(
+                    label="Rays chunk",
+                    tag="test_chunk",
+                    default_value=8192,
+                    callback=callback_test_chunk,
+                )
 
             with dpg.collapsing_header(label="Render", default_open=False):
 
@@ -562,14 +655,18 @@ class GUI:
                             rgbs = []
                             print("rendering video")
 
-                            for i in tqdm.tqdm(range(60)):
-                                self.camera.yaw(360 / 60)
-                                self.camera.walk(-0.6)
+                            self.camera.pitch(self.test_video_camera_pitch)
+                            frames = int(30 * self.test_video_length)
+                            angle = 360 / frames
+
+                            for _ in tqdm.tqdm(range(frames)):
+                                self.camera.yaw(angle)
+                                self.camera.walk(-self.test_video_camera_dist)
                                 self.camera.update()
 
                                 rgb = self.nerf.eval(self.camera.rays)
                                 rgbs.append(rgb)
-                                self.camera.walk(0.6)
+                                self.camera.walk(self.test_video_camera_dist)
 
                             rgbs = torch.stack(rgbs, 0)
                             imageio.mimwrite(
@@ -594,7 +691,7 @@ class GUI:
                 if self.rendering:
                     self.camera.update()
                     with torch.no_grad():
-                        rgb = self.nerf.eval(self.camera.rays)
+                        rgb = self.nerf.render(self.camera.rays)
                         dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
 
             dpg.render_dearpygui_frame()
