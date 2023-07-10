@@ -148,6 +148,8 @@ class GUI:
         self.test_video_radius = 0.6
         self.test_video_pitch = -45.0
         self.test_video_length = 2.0
+        self.test_video_width = 1024
+        self.test_video_height = 1024
 
         dpg.create_context()
 
@@ -238,9 +240,7 @@ class GUI:
                     dpg.add_plot_legend()
                     dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
                     dpg.add_plot_axis(dpg.mvYAxis, label="loss", tag="loss_axis")
-                    dpg.add_line_series(
-                        [], [], tag="loss_series", parent="loss_axis"
-                    )
+                    dpg.add_line_series([], [], tag="loss_series", parent="loss_axis")
 
                 def callback_data_root(sender, appdata):
                     self.nerf.data_root = appdata
@@ -248,7 +248,7 @@ class GUI:
                 dpg.add_input_text(
                     label="Data root",
                     tag="data_root",
-                    default_value="data",
+                    default_value=self.nerf.data_root,
                     callback=callback_data_root,
                 )
 
@@ -258,7 +258,7 @@ class GUI:
                 dpg.add_input_text(
                     label="Train split",
                     tag="train_split",
-                    default_value="train",
+                    default_value=self.nerf.train_split,
                     callback=callback_train_split,
                 )
 
@@ -268,7 +268,7 @@ class GUI:
                 dpg.add_input_text(
                     label="Scene",
                     tag="scene",
-                    default_value="bicycle",
+                    default_value=self.nerf.scene,
                     callback=callback_scene,
                 )
 
@@ -279,7 +279,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Max steps",
                     tag="max_steps",
-                    default_value=20000,
+                    default_value=self.nerf.max_steps,
                     callback=callback_max_steps,
                 )
 
@@ -289,7 +289,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Learning rate",
                     tag="lr",
-                    default_value=1e-2,
+                    default_value=self.nerf.lr,
                     callback=callback_lr,
                 )
 
@@ -299,7 +299,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Epsilon",
                     tag="eps",
-                    default_value=1e-15,
+                    default_value=self.nerf.eps,
                     callback=callback_eps,
                 )
 
@@ -309,7 +309,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Weight decay",
                     tag="weight_decay",
-                    default_value=0.0,
+                    default_value=self.nerf.weight_decay,
                     callback=callback_weight_decay,
                 )
 
@@ -319,7 +319,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Rays",
                     tag="train_num_rays",
-                    default_value=4096,
+                    default_value=self.nerf.train_num_rays,
                     callback=callback_train_num_rays,
                 )
 
@@ -329,7 +329,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Ray samples",
                     tag="train_num_samples",
-                    default_value=48,
+                    default_value=self.nerf.train_num_samples,
                     callback=callback_train_num_samples,
                 )
 
@@ -339,7 +339,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 0 samples",
                     tag="train_num_samples_prop0",
-                    default_value=256,
+                    default_value=self.nerf.train_num_samples_per_prop[0],
                     callback=callback_train_num_samples_prop0,
                 )
 
@@ -349,7 +349,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 1 samples",
                     tag="train_num_samples_prop1",
-                    default_value=9,
+                    default_value=self.nerf.train_num_samples_per_prop[1],
                     callback=callback_train_num_samples_prop1,
                 )
 
@@ -359,7 +359,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Near plane",
                     tag="train_near_plane",
-                    default_value=0.2,
+                    default_value=self.nerf.train_near_plane,
                     callback=callback_train_near_plane,
                 )
 
@@ -369,7 +369,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Far plane",
                     tag="train_far_plane",
-                    default_value=1e3,
+                    default_value=self.nerf.train_far_plane,
                     callback=callback_train_far_plane,
                 )
 
@@ -398,7 +398,9 @@ class GUI:
                         self.training = True
                         dpg.configure_item("button_train", label="pause")
 
-                dpg.add_button(label="train", tag="button_train", callback=callback_train)
+                dpg.add_button(
+                    label="train", tag="button_train", callback=callback_train
+                )
 
             with dpg.collapsing_header(label="Test", default_open=False):
 
@@ -408,7 +410,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Video radius",
                     tag="test_video_radius",
-                    default_value=0.6,
+                    default_value=self.test_video_radius,
                     callback=callback_test_video_radius,
                 )
 
@@ -418,7 +420,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Video pitch",
                     tag="test_video_pitch",
-                    default_value=-45.0,
+                    default_value=self.test_video_pitch,
                     callback=callback_test_video_pitch,
                 )
 
@@ -428,8 +430,28 @@ class GUI:
                 dpg.add_input_float(
                     label="Video length",
                     tag="test_video_length",
-                    default_value=2.0,
+                    default_value=self.test_video_length,
                     callback=callback_test_video_length,
+                )
+
+                def callback_test_video_width(sender, appdata):
+                    self.test_video_width = appdata
+
+                dpg.add_input_int(
+                    label="Video width",
+                    tag="test_video_width",
+                    default_value=self.test_video_width,
+                    callback=callback_test_video_width,
+                )
+
+                def callback_test_video_height(sender, appdata):
+                    self.test_video_height = appdata
+
+                dpg.add_input_int(
+                    label="Video height",
+                    tag="test_video_height",
+                    default_value=self.test_video_height,
+                    callback=callback_test_video_height,
                 )
 
                 def callback_test_num_samples(sender, appdata):
@@ -438,7 +460,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Ray samples",
                     tag="test_num_samples",
-                    default_value=48,
+                    default_value=self.nerf.test_num_samples,
                     callback=callback_test_num_samples,
                 )
 
@@ -448,7 +470,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 0 samples",
                     tag="test_num_samples_prop0",
-                    default_value=256,
+                    default_value=self.nerf.test_num_samples_per_prop[0],
                     callback=callback_test_num_samples_prop0,
                 )
 
@@ -458,7 +480,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 1 samples",
                     tag="test_num_samples_prop1",
-                    default_value=9,
+                    default_value=self.nerf.test_num_samples_per_prop[1],
                     callback=callback_test_num_samples_prop1,
                 )
 
@@ -468,7 +490,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Near plane",
                     tag="test_near_plane",
-                    default_value=0.2,
+                    default_value=self.nerf.test_near_plane,
                     callback=callback_test_near_plane,
                 )
 
@@ -478,18 +500,18 @@ class GUI:
                 dpg.add_input_float(
                     label="Far plane",
                     tag="test_far_plane",
-                    default_value=1e3,
+                    default_value=self.nerf.test_far_plane,
                     callback=callback_test_far_plane,
                 )
 
-                def callback_test_chunk(sender, appdata):
+                def callback_test_chunk_size(sender, appdata):
                     self.nerf.test_chunk_size = appdata
 
                 dpg.add_input_int(
-                    label="Rays chunk",
-                    tag="test_chunk",
-                    default_value=8192,
-                    callback=callback_test_chunk,
+                    label="Rays chunk size",
+                    tag="test_chunk_size",
+                    default_value=self.nerf.test_chunk_size,
+                    callback=callback_test_chunk_size,
                 )
 
                 def callback_test(sender, app_data):
@@ -499,12 +521,19 @@ class GUI:
                     dpg.set_value("modal_text", "Testing NeRF...")
                     dpg.configure_item("modal", show=True)
 
+                    training_flag = self.training
+                    if training_flag == True:
+                        self.training = False
+
                     file_name = (
                         "output/"
                         + self.nerf.scene
-                        + "_radius_" + str(self.test_video_radius)
-                        + "_pitch_" + str(self.test_video_pitch)
-                        + "_" + datetime.datetime.strftime(
+                        + "_radius_"
+                        + str(self.test_video_radius)
+                        + "_pitch_"
+                        + str(self.test_video_pitch)
+                        + "_"
+                        + datetime.datetime.strftime(
                             datetime.datetime.now(), "%y-%m-%d_%H:%M:%S"
                         )
                     )
@@ -522,7 +551,7 @@ class GUI:
                     rgbs = []
                     print("rendering video")
 
-                    video_camera = Camera()
+                    video_camera = Camera(self.test_video_width, self.test_video_height)
                     frames = int(30 * self.test_video_length)
                     angle = 360 / frames
 
@@ -537,87 +566,88 @@ class GUI:
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
 
-
                     rgbs = torch.stack(rgbs, 0)
                     imageio.mimwrite(
                         file_name + ".mp4",
                         (rgbs * 255).cpu().numpy().astype(np.uint8),
                         fps=30,
                         quality=8,
-                        macro_block_size=None
+                        macro_block_size=None,
                     )
 
-                    dpg.configure_item("modal", show=False)
+                    if training_flag == True:
+                        self.training = True
 
+                    dpg.configure_item("modal", show=False)
 
                 dpg.add_button(label="test", tag="button_test", callback=callback_test)
 
             with dpg.collapsing_header(label="Draw", default_open=False):
+
                 def callback_draw_camera_x(sender, appdata):
-                    self.camera.position[0]=appdata
+                    self.camera.position[0] = appdata
 
                 dpg.add_slider_float(
                     label="Camera X",
                     min_value=-2.0,
                     max_value=2.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_x
+                    default_value=self.camera.position[0],
+                    callback=callback_draw_camera_x,
                 )
 
                 def callback_draw_camera_y(sender, appdata):
-                    self.camera.position[1]=appdata
+                    self.camera.position[1] = appdata
 
                 dpg.add_slider_float(
                     label="Camera Y",
                     min_value=-2.0,
                     max_value=2.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_y
+                    default_value=self.camera.position[1],
+                    callback=callback_draw_camera_y,
                 )
 
                 def callback_draw_camera_z(sender, appdata):
-                    print(appdata)
-                    self.camera.position[2]=appdata
+                    self.camera.position[2] = appdata
 
                 dpg.add_slider_float(
                     label="Camera Z",
                     min_value=-2.0,
                     max_value=2.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_z
+                    default_value=self.camera.position[2],
+                    callback=callback_draw_camera_z,
                 )
 
                 def callback_draw_camera_pitch(sender, appdata):
-                    self.camera.euler[0]=appdata
+                    self.camera.euler[0] = appdata
 
                 dpg.add_slider_float(
                     label="Camera pitch",
                     min_value=-180.0,
                     max_value=180.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_pitch
+                    default_value=self.camera.euler[0],
+                    callback=callback_draw_camera_pitch,
                 )
 
                 def callback_draw_camera_yaw(sender, appdata):
-                    self.camera.euler[1]=appdata
+                    self.camera.euler[1] = appdata
 
                 dpg.add_slider_float(
                     label="Camera yaw",
                     min_value=-180.0,
                     max_value=180.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_yaw
+                    default_value=self.camera.euler[1],
+                    callback=callback_draw_camera_yaw,
                 )
 
                 def callback_draw_camera_roll(sender, appdata):
-                    self.camera.euler[2]=appdata
+                    self.camera.euler[2] = appdata
 
                 dpg.add_slider_float(
                     label="Camera roll",
                     min_value=-180.0,
                     max_value=180.0,
-                    default_value=0.0,
-                    callback=callback_draw_camera_roll
+                    default_value=self.camera.euler[2],
+                    callback=callback_draw_camera_roll,
                 )
 
                 def callback_draw_num_samples(sender, appdata):
@@ -626,7 +656,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Ray samples",
                     tag="draw_num_samples",
-                    default_value=48,
+                    default_value=self.nerf.draw_num_samples,
                     callback=callback_draw_num_samples,
                 )
 
@@ -636,7 +666,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 0 samples",
                     tag="draw_num_samples_prop0",
-                    default_value=256,
+                    default_value=self.nerf.draw_num_samples_per_prop[0],
                     callback=callback_draw_num_samples_prop0,
                 )
 
@@ -646,7 +676,7 @@ class GUI:
                 dpg.add_input_int(
                     label="Prop 1 samples",
                     tag="draw_num_samples_prop1",
-                    default_value=9,
+                    default_value=self.nerf.draw_num_samples_per_prop[1],
                     callback=callback_draw_num_samples_prop1,
                 )
 
@@ -656,7 +686,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Near plane",
                     tag="draw_near_plane",
-                    default_value=0.2,
+                    default_value=self.nerf.draw_near_plane,
                     callback=callback_draw_near_plane,
                 )
 
@@ -666,18 +696,18 @@ class GUI:
                 dpg.add_input_float(
                     label="Far plane",
                     tag="draw_far_plane",
-                    default_value=1e3,
+                    default_value=self.nerf.draw_far_plane,
                     callback=callback_draw_far_plane,
                 )
 
-                def callback_draw_chunk(sender, appdata):
+                def callback_draw_chunk_size(sender, appdata):
                     self.nerf.draw_chunk_size = appdata
 
                 dpg.add_input_int(
-                    label="Rays chunk",
-                    tag="draw_chunk",
-                    default_value=8192,
-                    callback=callback_draw_chunk,
+                    label="Rays chunk size",
+                    tag="draw_chunk_size",
+                    default_value=self.nerf.draw_chunk_size,
+                    callback=callback_draw_chunk_size,
                 )
 
                 def callback_draw(sender, appdata):
@@ -691,9 +721,9 @@ class GUI:
                     if training_flag == True:
                         self.training = False
 
-                    self.camera.right=torch.Tensor([1,0,0]).float()
-                    self.camera.down=torch.Tensor([0,1,0]).float()
-                    self.camera.look=torch.Tensor([0,0,1]).float()
+                    self.camera.right = torch.Tensor([1, 0, 0]).float()
+                    self.camera.down = torch.Tensor([0, 1, 0]).float()
+                    self.camera.look = torch.Tensor([0, 0, 1]).float()
                     self.camera.pitch(self.camera.euler[0])
                     self.camera.yaw(self.camera.euler[1])
                     self.camera.roll(self.camera.euler[2])
