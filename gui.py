@@ -729,9 +729,6 @@ class GUI:
                     self.camera.roll(self.camera.euler[2])
                     self.camera.update()
 
-                    print(self.camera.position)
-                    print(self.camera.euler)
-
                     with torch.no_grad():
                         rgb = self.nerf.draw(self.camera.rays)
                         dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
