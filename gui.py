@@ -730,9 +730,8 @@ class GUI:
                     self.camera.roll(self.camera.euler[2])
                     self.camera.update()
 
-                    with torch.no_grad():
-                        rgb = self.nerf.draw(self.camera.rays)
-                        dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
+                    rgb = self.nerf.draw(self.camera.rays)
+                    dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
 
                     if training_flag == True:
                         self.training = True
