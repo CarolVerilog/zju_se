@@ -144,8 +144,8 @@ class GUI:
         self.start = False
         self.training = False
         self.rendering = False
-        self.test_video_radius = 0.6
-        self.test_video_pitch = -30.0
+        self.test_video_radius = 1.0
+        self.test_video_pitch = -45.0
         self.test_video_length = 2.0
 
         dpg.create_context()
@@ -407,7 +407,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Video radius",
                     tag="test_video_radius",
-                    default_value=0.6,
+                    default_value=1.0,
                     callback=callback_test_video_radius,
                 )
 
@@ -417,7 +417,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Video pitch",
                     tag="test_video_pitch",
-                    default_value=-30.0,
+                    default_value=-45.0,
                     callback=callback_test_video_pitch,
                 )
 
@@ -542,6 +542,7 @@ class GUI:
                         (rgbs * 255).cpu().numpy().astype(np.uint8),
                         fps=30,
                         quality=8,
+                        macro_block_size=None
                     )
 
                     dpg.configure_item("modal", show=False)
