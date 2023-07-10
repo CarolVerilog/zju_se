@@ -144,8 +144,8 @@ class GUI:
         self.start = False
         self.training = False
         self.rendering = False
-        self.test_video_camera_dist = 0.6
-        self.test_video_camera_pitch = 0.0
+        self.test_video_radius = 0.6
+        self.test_video_pitch = -30.0
         self.test_video_length = 2.0
 
         dpg.create_context()
@@ -222,179 +222,203 @@ class GUI:
         ):
             dpg.add_text(default_value=f"FPS: {0}, MSPF: {0.0}", tag="fps")
             with dpg.collapsing_header(label="Train", default_open=False):
-                with dpg.group(horizontal=False):
-                    dpg.add_text(
-                        default_value=f"Iter: {0}/{self.nerf.max_steps}", tag="iter"
+                dpg.add_text(
+                    default_value=f"Iter: {0}/{self.nerf.max_steps}", tag="iter"
+                )
+                dpg.add_text(
+                    default_value="Training time: 00:00:000", tag="training_time"
+                )
+
+                with dpg.plot(
+                    label="Loss",
+                    width=self.width // 3 - 10,
+                    height=self.height // 4,
+                ):
+                    dpg.add_plot_legend()
+                    dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
+                    dpg.add_plot_axis(dpg.mvYAxis, label="loss", tag="loss_axis")
+                    dpg.add_line_series(
+                        [], [], tag="loss_series", parent="loss_axis"
                     )
-                    dpg.add_text(
-                        default_value="Training time: 00:00:000", tag="training_time"
-                    )
 
-                    with dpg.plot(
-                        label="Loss",
-                        width=self.width // 3 - 10,
-                        height=self.height // 4,
-                    ):
-                        dpg.add_plot_legend()
-                        dpg.add_plot_axis(dpg.mvXAxis, label="iter", tag="iter_axis")
-                        dpg.add_plot_axis(dpg.mvYAxis, label="loss", tag="loss_axis")
-                        dpg.add_line_series(
-                            [], [], tag="loss_series", parent="loss_axis"
-                        )
+                def callback_data_root(sender, appdata):
+                    self.nerf.data_root = appdata
 
-                    with dpg.group(horizontal=False):
+                dpg.add_input_text(
+                    label="Data root",
+                    tag="data_root",
+                    default_value="data",
+                    callback=callback_data_root,
+                )
 
-                        def callback_data_root(sender, appdata):
-                            self.nerf.data_root = appdata
+                def callback_train_split(sender, appdata):
+                    self.nerf.train_split = appdata
 
-                        dpg.add_input_text(
-                            label="Data root",
-                            tag="data_root",
-                            default_value="data",
-                            callback=callback_data_root,
-                        )
+                dpg.add_input_text(
+                    label="Train split",
+                    tag="train_split",
+                    default_value="train",
+                    callback=callback_train_split,
+                )
 
-                        def callback_train_split(sender, appdata):
-                            self.nerf.train_split = appdata
+                def callback_scene(sender, appdata):
+                    self.nerf.scene = appdata
 
-                        dpg.add_input_text(
-                            label="Train split",
-                            tag="train_split",
-                            default_value="train",
-                            callback=callback_train_split,
-                        )
+                dpg.add_input_text(
+                    label="Scene",
+                    tag="scene",
+                    default_value="garden",
+                    callback=callback_scene,
+                )
 
-                        def callback_scene(sender, appdata):
-                            self.nerf.scene = appdata
+                def callback_max_steps(sender, appdata):
+                    self.nerf.max_steps = appdata
+                    dpg.set_value("iter", f"Iter: {0}/{self.nerf.max_steps}")
 
-                        dpg.add_input_text(
-                            label="Scene",
-                            tag="scene",
-                            default_value="garden",
-                            callback=callback_scene,
-                        )
+                dpg.add_input_int(
+                    label="Max steps",
+                    tag="max_steps",
+                    default_value=20000,
+                    callback=callback_max_steps,
+                )
 
-                        def callback_max_steps(sender, appdata):
-                            self.nerf.max_steps = appdata
-                            dpg.set_value("iter", f"Iter: {0}/{self.nerf.max_steps}")
+                def callback_lr(sender, appdata):
+                    self.nerf.lr = appdata
 
-                        dpg.add_input_int(
-                            label="Max steps",
-                            tag="max_steps",
-                            default_value=20000,
-                            callback=callback_max_steps,
-                        )
+                dpg.add_input_float(
+                    label="Learning rate",
+                    tag="lr",
+                    default_value=1e-2,
+                    callback=callback_lr,
+                )
 
-                        def callback_lr(sender, appdata):
-                            self.nerf.lr = appdata
+                def callback_eps(sender, appdata):
+                    self.nerf.eps = appdata
 
-                        dpg.add_input_float(
-                            label="Learning rate",
-                            tag="lr",
-                            default_value=1e-2,
-                            callback=callback_lr,
-                        )
+                dpg.add_input_float(
+                    label="Epsilon",
+                    tag="eps",
+                    default_value=1e-15,
+                    callback=callback_eps,
+                )
 
-                        def callback_eps(sender, appdata):
-                            self.nerf.eps = appdata
+                def callback_weight_decay(sender, appdata):
+                    self.nerf.weight_decay = appdata
 
-                        dpg.add_input_float(
-                            label="Epsilon",
-                            tag="eps",
-                            default_value=1e-15,
-                            callback=callback_eps,
-                        )
+                dpg.add_input_float(
+                    label="Weight decay",
+                    tag="weight_decay",
+                    default_value=0.0,
+                    callback=callback_weight_decay,
+                )
 
-                        def callback_weight_decay(sender, appdata):
-                            self.nerf.weight_decay = appdata
+                def callback_train_num_rays(sender, appdata):
+                    self.nerf.train_num_rays = appdata
 
-                        dpg.add_input_float(
-                            label="Weight decay",
-                            tag="weight_decay",
-                            default_value=0.0,
-                            callback=callback_weight_decay,
-                        )
+                dpg.add_input_int(
+                    label="Rays",
+                    tag="train_num_rays",
+                    default_value=4096,
+                    callback=callback_train_num_rays,
+                )
 
-                        def callback_train_num_rays(sender, appdata):
-                            self.nerf.train_num_rays = appdata
+                def callback_train_num_samples(sender, appdata):
+                    self.nerf.train_num_samples = appdata
 
-                        dpg.add_input_int(
-                            label="Rays",
-                            tag="train_num_rays",
-                            default_value=4096,
-                            callback=callback_train_num_rays,
-                        )
+                dpg.add_input_int(
+                    label="Ray samples",
+                    tag="train_num_samples",
+                    default_value=48,
+                    callback=callback_train_num_samples,
+                )
 
-                        def callback_train_num_samples(sender, appdata):
-                            self.nerf.train_num_samples = appdata
+                def callback_train_num_samples_prop0(sender, appdata):
+                    self.nerf.train_num_samples_per_prop[0] = appdata
 
-                        dpg.add_input_int(
-                            label="Ray samples",
-                            tag="train_num_samples",
-                            default_value=48,
-                            callback=callback_train_num_samples,
-                        )
+                dpg.add_input_int(
+                    label="Prop 0 samples",
+                    tag="train_num_samples_prop0",
+                    default_value=256,
+                    callback=callback_train_num_samples_prop0,
+                )
 
-                        def callback_train_num_samples_prop0(sender, appdata):
-                            self.nerf.train_num_samples_per_prop[0] = appdata
+                def callback_train_num_samples_prop1(sender, appdata):
+                    self.nerf.train_num_samples_per_prop[1] = appdata
 
-                        dpg.add_input_int(
-                            label="Prop 0 samples",
-                            tag="train_num_samples_prop0",
-                            default_value=256,
-                            callback=callback_train_num_samples_prop0,
-                        )
+                dpg.add_input_int(
+                    label="Prop 1 samples",
+                    tag="train_num_samples_prop1",
+                    default_value=9,
+                    callback=callback_train_num_samples_prop1,
+                )
 
-                        def callback_train_num_samples_prop1(sender, appdata):
-                            self.nerf.train_num_samples_per_prop[1] = appdata
+                def callback_train_near_plane(sender, appdata):
+                    self.nerf.train_near_plane = appdata
 
-                        dpg.add_input_int(
-                            label="Prop 1 samples",
-                            tag="train_num_samples_prop1",
-                            default_value=9,
-                            callback=callback_train_num_samples_prop1,
-                        )
+                dpg.add_input_float(
+                    label="Near plane",
+                    tag="train_near_plane",
+                    default_value=0.2,
+                    callback=callback_train_near_plane,
+                )
 
-                        def callback_train_near_plane(sender, appdata):
-                            self.nerf.train_near_plane = appdata
+                def callback_train_far_plane(sender, appdata):
+                    self.nerf.train_far_plane = appdata
 
-                        dpg.add_input_float(
-                            label="Near plane",
-                            tag="train_near_plane",
-                            default_value=0.2,
-                            callback=callback_train_near_plane,
-                        )
+                dpg.add_input_float(
+                    label="Far plane",
+                    tag="train_far_plane",
+                    default_value=1e3,
+                    callback=callback_train_far_plane,
+                )
 
-                        def callback_train_far_plane(sender, appdata):
-                            self.nerf.train_far_plane = appdata
+                def callback_train(sender, app_data):
+                    if self.start == False:
+                        dpg.disable_item("data_root")
+                        dpg.disable_item("train_split")
+                        dpg.disable_item("scene")
+                        dpg.disable_item("max_steps")
+                        dpg.disable_item("lr")
+                        dpg.disable_item("eps")
+                        dpg.disable_item("weight_decay")
+                        dpg.disable_item("train_num_rays")
 
-                        dpg.add_input_float(
-                            label="Far plane",
-                            tag="train_far_plane",
-                            default_value=1e3,
-                            callback=callback_train_far_plane,
-                        )
+                        dpg.set_value("modal_text", "Loading Data...")
+                        dpg.configure_item("modal", show=True)
+                        self.nerf.populate()
+                        dpg.configure_item("modal", show=False)
+
+                        self.start = True
+
+                    if self.training:
+                        self.training = False
+                        dpg.configure_item("button_train", label="continue")
+                    else:
+                        self.training = True
+                        dpg.configure_item("button_train", label="pause")
+
+                dpg.add_button(label="train", tag="button_train", callback=callback_train)
 
             with dpg.collapsing_header(label="Test", default_open=False):
 
-                def callback_test_video_camera_dist(sender, appdata):
-                    self.test_video_camera_dist = appdata
+                def callback_test_video_radius(sender, appdata):
+                    self.test_video_radius = appdata
 
                 dpg.add_input_float(
-                    label="Video camera dist",
-                    tag="test_video_camera_dist",
+                    label="Video radius",
+                    tag="test_video_radius",
                     default_value=0.6,
-                    callback=callback_test_video_camera_dist,
+                    callback=callback_test_video_radius,
                 )
 
-                def callback_test_video_camera_pitch(sender, appdata):
-                    self.test_video_camera_pitch = appdata
+                def callback_test_video_pitch(sender, appdata):
+                    self.test_video_pitch = appdata
 
                 dpg.add_input_float(
-                    label="Video camera pitch",
-                    tag="test_video_camera_pitch",
-                    default_value=0.0,
-                    callback=callback_test_video_camera_pitch,
+                    label="Video pitch",
+                    tag="test_video_pitch",
+                    default_value=-30.0,
+                    callback=callback_test_video_pitch,
                 )
 
                 def callback_test_video_length(sender, appdata):
@@ -467,17 +491,65 @@ class GUI:
                     callback=callback_test_chunk,
                 )
 
+                def callback_test(sender, app_data):
+                    if self.start == False:
+                        return
+
+                    dpg.set_value("modal_text", "Testing NeRF...")
+                    dpg.configure_item("modal", show=True)
+
+                    file_name = (
+                        "output/"
+                        + self.nerf.scene
+                        + "_radius_" + str(self.test_video_radius)
+                        + "_pitch_" + str(self.test_video_pitch)
+                        + "_" + datetime.datetime.strftime(
+                            datetime.datetime.now(), "%y-%m-%d_%H:%M:%S"
+                        )
+                    )
+                    json_data = {}
+
+                    psnr, lpips = self.nerf.test()
+                    json_data["psnr"] = psnr
+                    json_data["lpips"] = lpips
+                    json_data["iter"] = self.nerf.max_steps
+                    json_data["time"] = dpg.get_value("training_time").split(":")[1][1:]
+
+                    json_file = open(file_name + ".json", "w")
+                    json.dump(json_data, json_file)
+
+                    rgbs = []
+                    print("rendering video")
+
+                    frames = int(30 * self.test_video_length)
+                    angle = 360 / frames
+
+                    for _ in tqdm.tqdm(range(frames)):
+                        self.camera.yaw(angle)
+                        self.camera.pitch(self.test_video_pitch)
+                        self.camera.walk(-self.test_video_radius)
+                        self.camera.update()
+
+                        rgb = self.nerf.eval(self.camera.rays)
+                        rgbs.append(rgb)
+                        self.camera.walk(self.test_video_radius)
+                        self.camera.pitch(-self.test_video_pitch)
+
+
+                    rgbs = torch.stack(rgbs, 0)
+                    imageio.mimwrite(
+                        file_name + ".mp4",
+                        (rgbs * 255).cpu().numpy().astype(np.uint8),
+                        fps=30,
+                        quality=8,
+                    )
+
+                    dpg.configure_item("modal", show=False)
+
+
+                dpg.add_button(label="test", tag="button_test", callback=callback_test)
+
             with dpg.collapsing_header(label="Render", default_open=False):
-
-                def callback_rendering(sender, appdata):
-                    self.rendering = not self.rendering
-
-                dpg.add_checkbox(
-                    label="Rendering",
-                    tag="rendering",
-                    default_value=False,
-                    callback=callback_rendering,
-                )
 
                 def callback_render_num_samples(sender, appdata):
                     self.nerf.render_num_samples = appdata
@@ -539,32 +611,18 @@ class GUI:
                     callback=callback_render_chunk,
                 )
 
-            def callback_train(sender, app_data):
-                if self.start == False:
-                    dpg.disable_item("data_root")
-                    dpg.disable_item("train_split")
-                    dpg.disable_item("scene")
-                    dpg.disable_item("max_steps")
-                    dpg.disable_item("lr")
-                    dpg.disable_item("eps")
-                    dpg.disable_item("weight_decay")
-                    dpg.disable_item("train_num_rays")
+                def callback_render(sender, appdata):
+                    if self.start == False:
+                        return
 
-                    dpg.set_value("modal_text", "Loading Data...")
-                    dpg.configure_item("modal", show=True)
-                    self.nerf.populate()
-                    dpg.configure_item("modal", show=False)
+                    if self.rendering:
+                        self.rendering = True
+                        dpg.configure_item("button_render", "stop")
+                    else:
+                        self.rendering = False
+                        dpg.configure_item("button_render", "render")
 
-                    self.start = True
-
-                if self.training:
-                    self.training = False
-                    dpg.configure_item("button_train", label="start")
-                else:
-                    self.training = True
-                    dpg.configure_item("button_train", label="stop")
-
-            dpg.add_button(label="start", tag="button_train", callback=callback_train)
+                dpg.add_button(label="render", tag="button_render", callback=callback_render)
 
         with dpg.window(tag="primary_window", width=self.width, height=self.height):
             dpg.add_image("texture")
@@ -628,61 +686,7 @@ class GUI:
                     dpg.set_axis_limits("loss_axis", min(plot_losses), max(plot_losses))
 
                     if step >= self.nerf.max_steps:
-
-                        def test():
-                            dpg.set_value("modal_text", "Testing NeRF...")
-                            dpg.configure_item("modal", show=True)
-
-                            file_name = (
-                                self.nerf.scene
-                                + "_"
-                                + datetime.datetime.strftime(
-                                    datetime.datetime.now(), "%y-%m-%d_%H:%M:%S"
-                                )
-                            )
-                            json_data = {}
-
-                            psnr, lpips = self.nerf.test()
-                            json_data["psnr"] = psnr
-                            json_data["lpips"] = lpips
-                            json_data["iter"] = self.nerf.max_steps
-                            json_data["time"] = training_time
-                            json_data["video"] = file_name + ".mp4"
-
-                            json_file = open(file_name + ".json", "w")
-                            json.dump(json_data, json_file)
-
-                            rgbs = []
-                            print("rendering video")
-
-                            self.camera.pitch(self.test_video_camera_pitch)
-                            frames = int(30 * self.test_video_length)
-                            angle = 360 / frames
-
-                            for _ in tqdm.tqdm(range(frames)):
-                                self.camera.yaw(angle)
-                                self.camera.walk(-self.test_video_camera_dist)
-                                self.camera.update()
-
-                                rgb = self.nerf.eval(self.camera.rays)
-                                rgbs.append(rgb)
-                                self.camera.walk(self.test_video_camera_dist)
-
-                            rgbs = torch.stack(rgbs, 0)
-                            imageio.mimwrite(
-                                json_data["video"],
-                                (rgbs * 255).cpu().numpy().astype(np.uint8),
-                                fps=30,
-                                quality=8,
-                            )
-
-                            dpg.configure_item("modal", show=False)
-
-                        torch.cuda.empty_cache()
-                        thread = threading.Thread(target=test)
-                        thread.start()
-
-                        dpg.configure_item("button_train", label="train")
+                        dpg.configure_item("button_train", label="finished")
                         dpg.disable_item("button_train")
                 else:
                     dpg.set_axis_limits_auto("iter_axis")
