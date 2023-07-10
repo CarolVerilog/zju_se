@@ -567,7 +567,7 @@ class GUI:
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
 
-                    rgbs = (torch.stack(rgbs, 0) * 255).cpu().numpy().astype(np.uint8)
+                    rgbs = (torch.stack(rgbs, 0).cpu().numpy() * 255).astype(np.uint8)
                     imageio.mimwrite(
                         file_name + ".mp4",
                         rgbs,
