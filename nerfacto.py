@@ -32,7 +32,7 @@ class NeRFacto:
         # scene settings
         self.data_root = "data"
         self.train_split = "train"
-        self.scene = "garden"
+        self.scene = "bicycle"
         self.aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0])
         # train settings
         self.max_steps = 20000
@@ -54,11 +54,11 @@ class NeRFacto:
         self.test_chunk_size = 8192
 
         # render settings
-        self.render_num_samples = 48
-        self.render_num_samples_per_prop = [256, 9]
-        self.render_near_plane = 0.2
-        self.render_far_plane = 1e3
-        self.render_chunk_size = 8192
+        self.draw_num_samples = 48
+        self.draw_num_samples_per_prop = [256, 9]
+        self.draw_near_plane = 0.2
+        self.draw_far_plane = 1e3
+        self.draw_chunk_size = 8192
 
     def populate(self) -> None:
         # dataset parameters
@@ -224,7 +224,7 @@ class NeRFacto:
 
         return rgb
 
-    def render(self, rays: Rays):
+    def draw(self, rays: Rays):
         self.radiance_field.eval()
         for p in self.proposal_networks:
             p.eval()
@@ -233,10 +233,10 @@ class NeRFacto:
         with torch.no_grad():
             rgb, _, _, _ = self.render(
                 rays,
-                num_samples=self.render_num_samples,
-                num_samples_per_prop=self.render_num_samples_per_prop,
-                near_plane=self.render_near_plane,
-                far_plane=self.render_far_plane,
+                num_samples=self.draw_num_samples,
+                num_samples_per_prop=self.draw_num_samples_per_prop,
+                near_plane=self.draw_near_plane,
+                far_plane=self.draw_far_plane,
                 render_bkgd=self.render_bkgd,
             )
 
@@ -328,7 +328,7 @@ class NeRFacto:
         chunk = (
             torch.iinfo(torch.int32).max
             if self.radiance_field.training
-            else self.render_chunk_size
+            else self.draw_chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)

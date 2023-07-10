@@ -57,6 +57,8 @@ class Camera:
         )
 
         self.position = torch.Tensor([0, 0, 0]).float()
+        self.euler = torch.Tensor([0, 0, 0]).float()
+
         self.down = torch.Tensor([0, 1, 0]).float()
         self.right = torch.Tensor([1, 0, 0]).float()
         self.look = torch.Tensor([0, 0, 1]).float()
@@ -143,8 +145,7 @@ class GUI:
         self.last_mouse_y = 0
         self.start = False
         self.training = False
-        self.rendering = False
-        self.test_video_radius = 1.0
+        self.test_video_radius = 0.6
         self.test_video_pitch = -45.0
         self.test_video_length = 2.0
 
@@ -231,7 +232,7 @@ class GUI:
 
                 with dpg.plot(
                     label="Loss",
-                    width=self.width // 3 - 10,
+                    width=-1,
                     height=self.height // 4,
                 ):
                     dpg.add_plot_legend()
@@ -267,7 +268,7 @@ class GUI:
                 dpg.add_input_text(
                     label="Scene",
                     tag="scene",
-                    default_value="garden",
+                    default_value="bicycle",
                     callback=callback_scene,
                 )
 
@@ -407,7 +408,7 @@ class GUI:
                 dpg.add_input_float(
                     label="Video radius",
                     tag="test_video_radius",
-                    default_value=1.0,
+                    default_value=0.6,
                     callback=callback_test_video_radius,
                 )
 
@@ -521,19 +522,20 @@ class GUI:
                     rgbs = []
                     print("rendering video")
 
+                    video_camera = Camera()
                     frames = int(30 * self.test_video_length)
                     angle = 360 / frames
 
                     for _ in tqdm.tqdm(range(frames)):
-                        self.camera.yaw(angle)
-                        self.camera.pitch(self.test_video_pitch)
-                        self.camera.walk(-self.test_video_radius)
-                        self.camera.update()
+                        video_camera.yaw(angle)
+                        video_camera.pitch(self.test_video_pitch)
+                        video_camera.walk(-self.test_video_radius)
+                        video_camera.update()
 
-                        rgb = self.nerf.eval(self.camera.rays)
+                        rgb = self.nerf.eval(video_camera.rays)
                         rgbs.append(rgb)
-                        self.camera.walk(self.test_video_radius)
-                        self.camera.pitch(-self.test_video_pitch)
+                        video_camera.walk(self.test_video_radius)
+                        video_camera.pitch(-self.test_video_pitch)
 
 
                     rgbs = torch.stack(rgbs, 0)
@@ -550,80 +552,166 @@ class GUI:
 
                 dpg.add_button(label="test", tag="button_test", callback=callback_test)
 
-            with dpg.collapsing_header(label="Render", default_open=False):
+            with dpg.collapsing_header(label="Draw", default_open=False):
+                def callback_draw_camera_x(sender, appdata):
+                    self.camera.position[0]=appdata
 
-                def callback_render_num_samples(sender, appdata):
-                    self.nerf.render_num_samples = appdata
+                dpg.add_slider_float(
+                    label="Camera X",
+                    min_value=-2.0,
+                    max_value=2.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_x
+                )
+
+                def callback_draw_camera_y(sender, appdata):
+                    self.camera.position[1]=appdata
+
+                dpg.add_slider_float(
+                    label="Camera Y",
+                    min_value=-2.0,
+                    max_value=2.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_y
+                )
+
+                def callback_draw_camera_z(sender, appdata):
+                    print(appdata)
+                    self.camera.position[2]=appdata
+
+                dpg.add_slider_float(
+                    label="Camera Z",
+                    min_value=-2.0,
+                    max_value=2.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_z
+                )
+
+                def callback_draw_camera_pitch(sender, appdata):
+                    self.camera.euler[0]=appdata
+
+                dpg.add_slider_float(
+                    label="Camera pitch",
+                    min_value=-180.0,
+                    max_value=180.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_pitch
+                )
+
+                def callback_draw_camera_yaw(sender, appdata):
+                    self.camera.euler[1]=appdata
+
+                dpg.add_slider_float(
+                    label="Camera yaw",
+                    min_value=-180.0,
+                    max_value=180.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_yaw
+                )
+
+                def callback_draw_camera_roll(sender, appdata):
+                    self.camera.euler[2]=appdata
+
+                dpg.add_slider_float(
+                    label="Camera roll",
+                    min_value=-180.0,
+                    max_value=180.0,
+                    default_value=0.0,
+                    callback=callback_draw_camera_roll
+                )
+
+                def callback_draw_num_samples(sender, appdata):
+                    self.nerf.draw_num_samples = appdata
 
                 dpg.add_input_int(
                     label="Ray samples",
-                    tag="render_num_samples",
+                    tag="draw_num_samples",
                     default_value=48,
-                    callback=callback_render_num_samples,
+                    callback=callback_draw_num_samples,
                 )
 
-                def callback_render_num_samples_prop0(sender, appdata):
-                    self.nerf.render_num_samples_per_prop[0] = appdata
+                def callback_draw_num_samples_prop0(sender, appdata):
+                    self.nerf.draw_num_samples_per_prop[0] = appdata
 
                 dpg.add_input_int(
                     label="Prop 0 samples",
-                    tag="render_num_samples_prop0",
+                    tag="draw_num_samples_prop0",
                     default_value=256,
-                    callback=callback_render_num_samples_prop0,
+                    callback=callback_draw_num_samples_prop0,
                 )
 
-                def callback_render_num_samples_prop1(sender, appdata):
-                    self.nerf.render_num_samples_per_prop[1] = appdata
+                def callback_draw_num_samples_prop1(sender, appdata):
+                    self.nerf.draw_num_samples_per_prop[1] = appdata
 
                 dpg.add_input_int(
                     label="Prop 1 samples",
-                    tag="render_num_samples_prop1",
+                    tag="draw_num_samples_prop1",
                     default_value=9,
-                    callback=callback_render_num_samples_prop1,
+                    callback=callback_draw_num_samples_prop1,
                 )
 
-                def callback_render_near_plane(sender, appdata):
-                    self.nerf.render_near_plane = appdata
+                def callback_draw_near_plane(sender, appdata):
+                    self.nerf.draw_near_plane = appdata
 
                 dpg.add_input_float(
                     label="Near plane",
-                    tag="render_near_plane",
+                    tag="draw_near_plane",
                     default_value=0.2,
-                    callback=callback_render_near_plane,
+                    callback=callback_draw_near_plane,
                 )
 
-                def callback_render_far_plane(sender, appdata):
-                    self.nerf.render_far_plane = appdata
+                def callback_draw_far_plane(sender, appdata):
+                    self.nerf.draw_far_plane = appdata
 
                 dpg.add_input_float(
                     label="Far plane",
-                    tag="render_far_plane",
+                    tag="draw_far_plane",
                     default_value=1e3,
-                    callback=callback_render_far_plane,
+                    callback=callback_draw_far_plane,
                 )
 
-                def callback_render_chunk(sender, appdata):
-                    self.nerf.render_chunk_size = appdata
+                def callback_draw_chunk(sender, appdata):
+                    self.nerf.draw_chunk_size = appdata
 
                 dpg.add_input_int(
                     label="Rays chunk",
-                    tag="render_chunk",
+                    tag="draw_chunk",
                     default_value=8192,
-                    callback=callback_render_chunk,
+                    callback=callback_draw_chunk,
                 )
 
-                def callback_render(sender, appdata):
+                def callback_draw(sender, appdata):
                     if self.start == False:
                         return
 
-                    if self.rendering:
-                        self.rendering = True
-                        dpg.configure_item("button_render", "stop")
-                    else:
-                        self.rendering = False
-                        dpg.configure_item("button_render", "render")
+                    dpg.set_value("modal_text", "Drawing to window...")
+                    dpg.configure_item("modal", show=True)
 
-                dpg.add_button(label="render", tag="button_render", callback=callback_render)
+                    training_flag = self.training
+                    if training_flag == True:
+                        self.training = False
+
+                    self.camera.right=torch.Tensor([1,0,0]).float()
+                    self.camera.down=torch.Tensor([0,1,0]).float()
+                    self.camera.look=torch.Tensor([0,0,1]).float()
+                    self.camera.pitch(self.camera.euler[0])
+                    self.camera.yaw(self.camera.euler[1])
+                    self.camera.roll(self.camera.euler[2])
+                    self.camera.update()
+
+                    print(self.camera.position)
+                    print(self.camera.euler)
+
+                    with torch.no_grad():
+                        rgb = self.nerf.draw(self.camera.rays)
+                        dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
+
+                    if training_flag == True:
+                        self.training = True
+
+                    dpg.configure_item("modal", show=False)
+
+                dpg.add_button(label="draw", tag="button_draw", callback=callback_draw)
 
         with dpg.window(tag="primary_window", width=self.width, height=self.height):
             dpg.add_image("texture")
@@ -692,12 +780,6 @@ class GUI:
                 else:
                     dpg.set_axis_limits_auto("iter_axis")
                     dpg.set_axis_limits_auto("loss_axis")
-
-                if self.rendering:
-                    self.camera.update()
-                    with torch.no_grad():
-                        rgb = self.nerf.render(self.camera.rays)
-                        dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
 
             dpg.render_dearpygui_frame()
 
