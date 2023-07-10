@@ -17,4 +17,4 @@ parser.add_argument(
 args = parser.parse_args()
 
 gui = GUI(args.width, args.height)
-gui.render()
+gui.run()

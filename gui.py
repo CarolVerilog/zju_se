@@ -755,7 +755,7 @@ class GUI:
         dpg.maximize_viewport()
         dpg.show_viewport()
 
-    def render(self):
+    def run(self):
         step = 0
         training_time = 0
         frame_count = 0

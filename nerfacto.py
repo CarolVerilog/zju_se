@@ -280,14 +280,13 @@ class NeRFacto:
 
             rgb = torch.permute(rgb, (2, 0, 1)).unsqueeze(0)
             pixels = torch.permute(pixels, (2, 0, 1)).unsqueeze(0)
-            ssims.append(self.ssim(rgb,pixels))
-            psnrs.append(self.psnr(rgb,pixels))
-            lpips.append(self.lpips(rgb,pixels))
+            ssims.append(self.ssim(rgb, pixels))
+            psnrs.append(self.psnr(rgb, pixels))
+            lpips.append(self.lpips(rgb, pixels))
 
-
-        ssim = (sum(ssims)/len(ssims)).item()
-        psnr = (sum(psnrs)/len(psnrs)).item()
-        lpips = (sum(lpips)/len(lpips)).item()
+        ssim = (sum(ssims) / len(ssims)).item()
+        psnr = (sum(psnrs) / len(psnrs)).item()
+        lpips = (sum(lpips) / len(lpips)).item()
 
         return ssim, psnr, lpips
 
@@ -372,9 +371,10 @@ class NeRFacto:
                 torch.Tensor: lambda x, **_: torch.cat(x, 0),
             },
         )
+
         return (
-            colors.view((*rays_shape[:-1], -1)),
-            opacities.view((*rays_shape[:-1], -1)),
-            depths.view((*rays_shape[:-1], -1)),
+            torch.clamp(colors, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),
+            torch.clamp(opacities, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),
+            torch.clamp(depths, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),
             extras,
         )
