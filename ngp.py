@@ -5,20 +5,10 @@ import torch
 from torch.autograd import Function
 from torch.cuda.amp import custom_bwd, custom_fwd
 
-try:
-    import tinycudann as tcnn
-except ImportError as e:
-    print(
-        f"Error: {e}! "
-        "Please install tinycudann by: "
-        "pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch"
-    )
-    exit()
+import tinycudann as tcnn
 
 
-class _TruncExp(Function):  # pylint: disable=abstract-method
-    # Implementation from torch-ngp:
-    # https://github.com/ashawkey/torch-ngp/blob/93b08a0d4ec1cc6e69d85df7f0acdfb99603b628/activation.py
+class TruncExp(Function):
     @staticmethod
     @custom_fwd(cast_inputs=torch.float32)
     def forward(ctx, x):  # pylint: disable=arguments-differ
@@ -32,14 +22,13 @@ class _TruncExp(Function):  # pylint: disable=abstract-method
         return g * torch.exp(torch.clamp(x, max=15))
 
 
-trunc_exp = _TruncExp.apply
+trunc_exp = TruncExp.apply
 
 
 def contract_to_unisphere(
     x: torch.Tensor,
     aabb: torch.Tensor,
     ord: Union[str, int] = 2,
-    #  ord: Union[float, int] = float("inf"),
     eps: float = 1e-6,
     derivative: bool = False,
 ):
@@ -63,8 +52,6 @@ def contract_to_unisphere(
 
 
 class NGPRadianceField(torch.nn.Module):
-    """Instance-NGP Radiance Field"""
-
     def __init__(
         self,
         aabb: Union[torch.Tensor, List[float]],
@@ -169,7 +156,7 @@ class NGPRadianceField(torch.nn.Module):
         else:
             return density
 
-    def _query_rgb(self, dir, embedding, apply_act: bool = True):
+    def query_rgb(self, dir, embedding, apply_act: bool = True):
         # tcnn requires directions in the range [0, 1]
         if self.use_viewdirs:
             dir = (dir + 1.0) / 2.0
@@ -192,13 +179,11 @@ class NGPRadianceField(torch.nn.Module):
                 positions.shape == directions.shape
             ), f"{positions.shape} v.s. {directions.shape}"
             density, embedding = self.query_density(positions, return_feat=True)
-            rgb = self._query_rgb(directions, embedding=embedding)
+            rgb = self.query_rgb(directions, embedding=embedding)
         return rgb, density  # type: ignore
 
 
 class NGPDensityField(torch.nn.Module):
-    """Instance-NGP Density Field used for resampling"""
-
     def __init__(
         self,
         aabb: Union[torch.Tensor, List[float]],

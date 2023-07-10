@@ -147,7 +147,7 @@ class GUI:
         self.training = False
         self.test_video_radius = 0.6
         self.test_video_pitch = -45.0
-        self.test_video_length = 2.0
+        self.test_video_length = 4.0
         self.test_video_width = 1024
         self.test_video_height = 1024
 
@@ -539,11 +539,12 @@ class GUI:
                     )
                     json_data = {}
 
-                    psnr, lpips = self.nerf.test()
+                    ssim, psnr, lpips = self.nerf.test()
+                    json_data["ssim"] = ssim
                     json_data["psnr"] = psnr
                     json_data["lpips"] = lpips
                     json_data["iter"] = self.nerf.max_steps
-                    json_data["time"] = dpg.get_value("training_time").split(":")[1][1:]
+                    json_data["time"] = dpg.get_value("training_time").split(": ")[1]
 
                     json_file = open(file_name + ".json", "w")
                     json.dump(json_data, json_file)
@@ -566,12 +567,12 @@ class GUI:
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
 
-                    rgbs = torch.stack(rgbs, 0)
+                    rgbs = (torch.stack(rgbs, 0) * 255).cpu().numpy().astype(np.uint8)
                     imageio.mimwrite(
                         file_name + ".mp4",
-                        (rgbs * 255).cpu().numpy().astype(np.uint8),
+                        rgbs,
                         fps=30,
-                        quality=8,
+                        quality=10,
                         macro_block_size=None,
                     )
 

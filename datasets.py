@@ -10,7 +10,7 @@ from pycolmap.scene_manager import SceneManager
 from utils import Rays
 
 
-def _load_colmap(root_fp: str, subject_id: str, factor: int = 1):
+def load_colmap(root_fp: str, subject_id: str, factor: int = 1):
     assert factor in [1, 2, 4, 8]
 
     data_dir = os.path.join(root_fp, subject_id)
@@ -220,7 +220,7 @@ class DataLoader(torch.utils.data.Dataset):
         self.training = (num_rays is not None) and (split in ["train", "trainval"])
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
-        self.images, self.camtoworlds, self.K, split_indices = _load_colmap(
+        self.images, self.camtoworlds, self.K, split_indices = load_colmap(
             root_fp, subject_id, factor
         )
         # normalize the scene

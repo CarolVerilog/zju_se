@@ -5,7 +5,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
-from lpips import LPIPS
+from torchmetrics.functional import structural_similarity_index_measure
+from torchmetrics.image import PeakSignalNoiseRatio
+from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 import tqdm
 
 from ngp import NGPDensityField, NGPRadianceField
@@ -59,6 +61,11 @@ class NeRFacto:
         self.draw_near_plane = 0.2
         self.draw_far_plane = 1e3
         self.draw_chunk_size = 8192
+
+        # metrics
+        self.ssim = structural_similarity_index_measure
+        self.psnr = PeakSignalNoiseRatio(data_range=1.0).to(device)
+        self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True).to(device)
 
     def populate(self) -> None:
         # dataset parameters
@@ -156,12 +163,6 @@ class NeRFacto:
         )
         self.proposal_requires_grad_fn = get_proposal_requires_grad_fn()
 
-        lpips_net = LPIPS(net="vgg").to(device)
-        lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
-        self.lpips_fn = lambda x, y: lpips_net(
-            lpips_norm_fn(x), lpips_norm_fn(y)
-        ).mean()
-
     def train(
         self,
         step,
@@ -206,42 +207,43 @@ class NeRFacto:
 
         return loss.item()
 
+    @torch.no_grad()
     def eval(self, rays: Rays):
         self.radiance_field.eval()
         for p in self.proposal_networks:
             p.eval()
         self.estimator.eval()
 
-        with torch.no_grad():
-            rgb, _, _, _ = self.render(
-                rays,
-                num_samples=self.test_num_samples,
-                num_samples_per_prop=self.test_num_samples_per_prop,
-                near_plane=self.test_near_plane,
-                far_plane=self.test_far_plane,
-                render_bkgd=self.render_bkgd,
-            )
+        rgb, _, _, _ = self.render(
+            rays,
+            num_samples=self.test_num_samples,
+            num_samples_per_prop=self.test_num_samples_per_prop,
+            near_plane=self.test_near_plane,
+            far_plane=self.test_far_plane,
+            render_bkgd=self.render_bkgd,
+        )
 
         return rgb
 
+    @torch.no_grad()
     def draw(self, rays: Rays):
         self.radiance_field.eval()
         for p in self.proposal_networks:
             p.eval()
         self.estimator.eval()
 
-        with torch.no_grad():
-            rgb, _, _, _ = self.render(
-                rays,
-                num_samples=self.draw_num_samples,
-                num_samples_per_prop=self.draw_num_samples_per_prop,
-                near_plane=self.draw_near_plane,
-                far_plane=self.draw_far_plane,
-                render_bkgd=self.render_bkgd,
-            )
+        rgb, _, _, _ = self.render(
+            rays,
+            num_samples=self.draw_num_samples,
+            num_samples_per_prop=self.draw_num_samples_per_prop,
+            near_plane=self.draw_near_plane,
+            far_plane=self.draw_far_plane,
+            render_bkgd=self.render_bkgd,
+        )
 
         return rgb
 
+    @torch.no_grad()
     def test(self):
         # evaluation
         self.radiance_field.eval()
@@ -249,38 +251,45 @@ class NeRFacto:
             p.eval()
         self.estimator.eval()
 
+        ssims = []
         psnrs = []
         lpips = []
-        with torch.no_grad():
-            print("testing nerf")
-            for i in tqdm.tqdm(range(len(self.test_dataset))):
-                data = self.test_dataset[i]
-                render_bkgd = data["color_bkgd"]
-                rays = data["rays"]
-                pixels = data["pixels"]
 
-                # rendering
-                (
-                    rgb,
-                    _,
-                    _,
-                    _,
-                ) = self.render(
-                    rays,
-                    # rendering options
-                    num_samples=self.test_num_samples,
-                    num_samples_per_prop=self.test_num_samples_per_prop,
-                    near_plane=self.test_near_plane,
-                    far_plane=self.test_far_plane,
-                    render_bkgd=render_bkgd,
-                )
-                mse = F.mse_loss(rgb, pixels)
-                psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                psnrs.append(psnr.item())
-                lpips.append(self.lpips_fn(rgb, pixels).item())
-        psnr_avg = sum(psnrs) / len(psnrs)
-        lpips_avg = sum(lpips) / len(lpips)
-        return psnr_avg, lpips_avg
+        print("testing nerf")
+        for i in tqdm.tqdm(range(len(self.test_dataset))):
+            data = self.test_dataset[i]
+            render_bkgd = data["color_bkgd"]
+            rays = data["rays"]
+            pixels = data["pixels"].to(device)
+
+            # rendering
+            (
+                rgb,
+                _,
+                _,
+                _,
+            ) = self.render(
+                rays,
+                # rendering options
+                num_samples=self.test_num_samples,
+                num_samples_per_prop=self.test_num_samples_per_prop,
+                near_plane=self.test_near_plane,
+                far_plane=self.test_far_plane,
+                render_bkgd=render_bkgd,
+            )
+
+            rgb = torch.permute(rgb, (2, 0, 1)).unsqueeze(0)
+            pixels = torch.permute(pixels, (2, 0, 1)).unsqueeze(0)
+            ssims.append(self.ssim(rgb,pixels))
+            psnrs.append(self.psnr(rgb,pixels))
+            lpips.append(self.lpips(rgb,pixels))
+
+
+        ssim = (sum(ssims)/len(ssims)).item()
+        psnr = (sum(psnrs)/len(psnrs)).item()
+        lpips = (sum(lpips)/len(lpips)).item()
+
+        return ssim, psnr, lpips
 
     def render(
         self,
