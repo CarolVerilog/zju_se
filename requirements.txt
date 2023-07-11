@@ -1,7 +1,9 @@
 torch
+torchmetrics
 nerfacc
 opencv-python
 imageio
+imageio-ffmpeg
 numpy
 tqdm
 scipy
