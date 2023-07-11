@@ -53,22 +53,18 @@ def load_colmap(root_fp: str, subject_id: str, factor: int = 1):
 
     if type_ == 0 or type_ == "SIMPLE_PINHOLE":
         params = None
-        camtype = "perspective"
 
     elif type_ == 1 or type_ == "PINHOLE":
         params = None
-        camtype = "perspective"
 
     if type_ == 2 or type_ == "SIMPLE_RADIAL":
         params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
         params["k1"] = cam.k1
-        camtype = "perspective"
 
     elif type_ == 3 or type_ == "RADIAL":
         params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
         params["k1"] = cam.k1
         params["k2"] = cam.k2
-        camtype = "perspective"
 
     elif type_ == 4 or type_ == "OPENCV":
         params = {k: 0.0 for k in ["k1", "k2", "k3", "p1", "p2"]}
@@ -76,7 +72,6 @@ def load_colmap(root_fp: str, subject_id: str, factor: int = 1):
         params["k2"] = cam.k2
         params["p1"] = cam.p1
         params["p2"] = cam.p2
-        camtype = "perspective"
 
     elif type_ == 5 or type_ == "OPENCV_FISHEYE":
         params = {k: 0.0 for k in ["k1", "k2", "k3", "k4"]}
@@ -84,7 +79,6 @@ def load_colmap(root_fp: str, subject_id: str, factor: int = 1):
         params["k2"] = cam.k2
         params["k3"] = cam.k3
         params["k4"] = cam.k4
-        camtype = "fisheye"
 
     assert params is None, "Only support pinhole camera model."
 
@@ -110,7 +104,7 @@ def load_colmap(root_fp: str, subject_id: str, factor: int = 1):
     image_files = sorted(os.listdir(image_dir))
     colmap_to_image = dict(zip(colmap_files, image_files))
     image_paths = [os.path.join(image_dir, colmap_to_image[f]) for f in image_names]
-    print("loading images")
+    print("Loading images")
     images = [imageio.imread(x) for x in tqdm.tqdm(image_paths)]
     images = np.stack(images, axis=0)
 

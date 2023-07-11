@@ -57,7 +57,6 @@ class Camera:
         )
 
         self.position = torch.Tensor([0, 0, 0]).float()
-        self.euler = torch.Tensor([0, 0, 0]).float()
 
         self.down = torch.Tensor([0, 1, 0]).float()
         self.right = torch.Tensor([1, 0, 0]).float()
@@ -145,6 +144,7 @@ class GUI:
         self.last_mouse_y = 0
         self.start = False
         self.training = False
+        self.drawing = False
         self.test_video_radius = 0.6
         self.test_video_pitch = -45.0
         self.test_video_length = 4.0
@@ -159,31 +159,41 @@ class GUI:
                 self.height,
                 self.render_buffer,
                 format=dpg.mvFormat_Float_rgb,
-                tag="texture",
+                tag="render_buffer",
             )
 
         def A_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             self.camera.strafe(-0.01)
 
         def S_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             self.camera.walk(-0.01)
 
         def W_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             self.camera.walk(+0.01)
 
         def D_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             self.camera.strafe(+0.01)
 
         def mouse_drag(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             dx, dy = app_data[1] - self.last_mouse_x, app_data[2] - self.last_mouse_y
             self.last_mouse_x, self.last_mouse_y = app_data[1], app_data[2]
@@ -191,7 +201,9 @@ class GUI:
             self.camera.pitch(-dy * 0.05)
 
         def mouse_release(sender, app_data):
-            if not dpg.is_item_focused("primary_window"):
+            if not dpg.is_item_focused("primary_window") or \
+               not self.drawing or \
+               not self.start:
                 return
             self.last_mouse_x = self.last_mouse_y = 0
 
@@ -270,6 +282,16 @@ class GUI:
                     tag="scene",
                     default_value=self.nerf.scene,
                     callback=callback_scene,
+                )
+
+                def callback_factor(sender, appdata):
+                    self.nerf.factor = appdata
+
+                dpg.add_input_int(
+                    label="factor",
+                    tag="factor",
+                    default_value=self.nerf.factor,
+                    callback=callback_factor,
                 )
 
                 def callback_max_steps(sender, appdata):
@@ -384,7 +406,7 @@ class GUI:
                         dpg.disable_item("weight_decay")
                         dpg.disable_item("train_num_rays")
 
-                        dpg.set_value("modal_text", "Loading Data...")
+                        dpg.set_value("modal_text", "Loading data...")
                         dpg.configure_item("modal", show=True)
                         self.nerf.populate()
                         dpg.configure_item("modal", show=False)
@@ -399,7 +421,7 @@ class GUI:
                         dpg.configure_item("button_train", label="pause")
 
                 dpg.add_button(
-                    label="train", tag="button_train", callback=callback_train
+                    label="Train", tag="button_train", callback=callback_train
                 )
 
             with dpg.collapsing_header(label="Test", default_open=False):
@@ -550,7 +572,7 @@ class GUI:
                     json.dump(json_data, json_file)
 
                     rgbs = []
-                    print("rendering video")
+                    print("Rendering video")
 
                     video_camera = Camera(self.test_video_width, self.test_video_height)
                     frames = int(30 * self.test_video_length)
@@ -581,75 +603,9 @@ class GUI:
 
                     dpg.configure_item("modal", show=False)
 
-                dpg.add_button(label="test", tag="button_test", callback=callback_test)
+                dpg.add_button(label="Test", tag="button_test", callback=callback_test)
 
             with dpg.collapsing_header(label="Draw", default_open=False):
-
-                def callback_draw_camera_x(sender, appdata):
-                    self.camera.position[0] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera X",
-                    min_value=-2.0,
-                    max_value=2.0,
-                    default_value=self.camera.position[0],
-                    callback=callback_draw_camera_x,
-                )
-
-                def callback_draw_camera_y(sender, appdata):
-                    self.camera.position[1] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera Y",
-                    min_value=-2.0,
-                    max_value=2.0,
-                    default_value=self.camera.position[1],
-                    callback=callback_draw_camera_y,
-                )
-
-                def callback_draw_camera_z(sender, appdata):
-                    self.camera.position[2] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera Z",
-                    min_value=-2.0,
-                    max_value=2.0,
-                    default_value=self.camera.position[2],
-                    callback=callback_draw_camera_z,
-                )
-
-                def callback_draw_camera_pitch(sender, appdata):
-                    self.camera.euler[0] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera pitch",
-                    min_value=-180.0,
-                    max_value=180.0,
-                    default_value=self.camera.euler[0],
-                    callback=callback_draw_camera_pitch,
-                )
-
-                def callback_draw_camera_yaw(sender, appdata):
-                    self.camera.euler[1] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera yaw",
-                    min_value=-180.0,
-                    max_value=180.0,
-                    default_value=self.camera.euler[1],
-                    callback=callback_draw_camera_yaw,
-                )
-
-                def callback_draw_camera_roll(sender, appdata):
-                    self.camera.euler[2] = appdata
-
-                dpg.add_slider_float(
-                    label="Camera roll",
-                    min_value=-180.0,
-                    max_value=180.0,
-                    default_value=self.camera.euler[2],
-                    callback=callback_draw_camera_roll,
-                )
 
                 def callback_draw_num_samples(sender, appdata):
                     self.nerf.draw_num_samples = appdata
@@ -712,36 +668,14 @@ class GUI:
                 )
 
                 def callback_draw(sender, appdata):
-                    if self.start == False:
+                    if not self.start:
                         return
+                    self.drawing = not self.drawing
 
-                    dpg.set_value("modal_text", "Drawing to window...")
-                    dpg.configure_item("modal", show=True)
-
-                    training_flag = self.training
-                    if training_flag == True:
-                        self.training = False
-
-                    self.camera.right = torch.Tensor([1, 0, 0]).float()
-                    self.camera.down = torch.Tensor([0, 1, 0]).float()
-                    self.camera.look = torch.Tensor([0, 0, 1]).float()
-                    self.camera.pitch(self.camera.euler[0])
-                    self.camera.yaw(self.camera.euler[1])
-                    self.camera.roll(self.camera.euler[2])
-                    self.camera.update()
-
-                    rgb = self.nerf.draw(self.camera.rays)
-                    dpg.set_value("texture", rgb.cpu().numpy().reshape(-1))
-
-                    if training_flag == True:
-                        self.training = True
-
-                    dpg.configure_item("modal", show=False)
-
-                dpg.add_button(label="draw", tag="button_draw", callback=callback_draw)
+                dpg.add_checkbox(label="Draw", tag="checkbox_draw", callback=callback_draw)
 
         with dpg.window(tag="primary_window", width=self.width, height=self.height):
-            dpg.add_image("texture")
+            dpg.add_image("render_buffer")
             dpg.set_primary_window("primary_window", True)
 
         dpg.create_viewport(
@@ -808,6 +742,11 @@ class GUI:
                     dpg.set_axis_limits_auto("iter_axis")
                     dpg.set_axis_limits_auto("loss_axis")
 
+                if self.drawing:
+                    self.camera.update()
+                    rgb=self.nerf.eval(self.camera.rays)
+                    dpg.set_value("render_buffer", rgb.cpu().numpy().reshape(-1))
+
             dpg.render_dearpygui_frame()
 
             frame_time = time.time() - frame_time
@@ -815,6 +754,8 @@ class GUI:
             frame_count += 1
 
             if elapsed_time >= 1.0:
-                dpg.set_value("fps", f"FPS: {frame_count} MSPF: {1000/frame_count:.2f}")
+                fps = frame_count if frame_count > 1 else 1 / elapsed_time
+                mspf = 1000 / fps
+                dpg.set_value("fps", f"FPS: {fps:.2f} MSPF: {mspf:.2f}")
                 elapsed_time = 0.0
                 frame_count = 0

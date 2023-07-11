@@ -35,6 +35,7 @@ class NeRFacto:
         self.data_root = "data"
         self.train_split = "train"
         self.scene = "bicycle"
+        self.factor = 4
         self.aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0])
         # train settings
         self.max_steps = 20000
@@ -44,20 +45,20 @@ class NeRFacto:
         self.train_num_rays = 4096
 
         self.train_num_samples = 48
-        self.train_num_samples_per_prop = [256, 9]
+        self.train_num_samples_per_prop = [256, 96]
         self.train_near_plane = 0.2
         self.train_far_plane = 1e3
 
         # test settings
         self.test_num_samples = 48
-        self.test_num_samples_per_prop = [256, 9]
+        self.test_num_samples_per_prop = [256, 96]
         self.test_near_plane = 0.2
         self.test_far_plane = 1e3
         self.test_chunk_size = 8192
 
         # render settings
         self.draw_num_samples = 48
-        self.draw_num_samples_per_prop = [256, 9]
+        self.draw_num_samples_per_prop = [256, 96]
         self.draw_near_plane = 0.2
         self.draw_far_plane = 1e3
         self.draw_chunk_size = 8192
@@ -69,8 +70,8 @@ class NeRFacto:
 
     def populate(self) -> None:
         # dataset parameters
-        train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
-        test_dataset_kwargs = {"factor": 4}
+        train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": self.factor}
+        test_dataset_kwargs = {"factor": self.factor}
         # model parameters
         self.proposal_networks = [
             NGPDensityField(
@@ -239,6 +240,7 @@ class NeRFacto:
             near_plane=self.draw_near_plane,
             far_plane=self.draw_far_plane,
             render_bkgd=self.render_bkgd,
+            chunk_size=self.draw_chunk_size,
         )
 
         return rgb
@@ -255,7 +257,7 @@ class NeRFacto:
         psnrs = []
         lpips = []
 
-        print("testing nerf")
+        print("Testing nerf")
         for i in tqdm.tqdm(range(len(self.test_dataset))):
             data = self.test_dataset[i]
             render_bkgd = data["color_bkgd"]
@@ -276,6 +278,7 @@ class NeRFacto:
                 near_plane=self.test_near_plane,
                 far_plane=self.test_far_plane,
                 render_bkgd=render_bkgd,
+                chunk_size=self.test_chunk_size,
             )
 
             rgb = torch.permute(rgb, (2, 0, 1)).unsqueeze(0)
@@ -300,6 +303,7 @@ class NeRFacto:
         near_plane: Optional[float] = None,
         far_plane: Optional[float] = None,
         render_bkgd: Optional[torch.Tensor] = None,
+        chunk_size: int = 8192,
         # train options
         proposal_requires_grad=False,
     ):
@@ -336,7 +340,7 @@ class NeRFacto:
         chunk = (
             torch.iinfo(torch.int32).max
             if self.radiance_field.training
-            else self.draw_chunk_size
+            else chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
