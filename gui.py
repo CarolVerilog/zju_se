@@ -712,7 +712,6 @@ class GUI:
             width=self.width,
             height=self.height,
             resizable=False,
-            decorated=False,
         )
         dpg.setup_dearpygui()
         dpg.maximize_viewport()
