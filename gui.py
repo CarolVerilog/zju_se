@@ -1,7 +1,7 @@
 import time
 import datetime
-import threading
 import json
+import os
 
 import numpy as np
 import torch
@@ -145,6 +145,7 @@ class GUI:
         self.start = False
         self.training = False
         self.drawing = False
+        self.output_dir = "output"
         self.test_video_radius = 0.6
         self.test_video_pitch = -45.0
         self.test_video_length = 4.0
@@ -163,37 +164,47 @@ class GUI:
             )
 
         def A_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             self.camera.strafe(-0.01)
 
         def S_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             self.camera.walk(-0.01)
 
         def W_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             self.camera.walk(+0.01)
 
         def D_down(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             self.camera.strafe(+0.01)
 
         def mouse_drag(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             dx, dy = app_data[1] - self.last_mouse_x, app_data[2] - self.last_mouse_y
             self.last_mouse_x, self.last_mouse_y = app_data[1], app_data[2]
@@ -201,9 +212,11 @@ class GUI:
             self.camera.pitch(-dy * 0.05)
 
         def mouse_release(sender, app_data):
-            if not dpg.is_item_focused("primary_window") or \
-               not self.drawing or \
-               not self.start:
+            if (
+                not dpg.is_item_focused("primary_window")
+                or not self.drawing
+                or not self.start
+            ):
                 return
             self.last_mouse_x = self.last_mouse_y = 0
 
@@ -426,6 +439,16 @@ class GUI:
 
             with dpg.collapsing_header(label="Test", default_open=False):
 
+                def callback_output_dir(sender, appdata):
+                    self.output_dir = appdata
+
+                dpg.add_input_text(
+                    label="Output directory",
+                    tag="output_dir",
+                    default_value=self.output_dir,
+                    callback=callback_output_dir,
+                )
+
                 def callback_test_video_radius(sender, appdata):
                     self.test_video_radius = appdata
 
@@ -547,8 +570,12 @@ class GUI:
                     if training_flag == True:
                         self.training = False
 
+                    if not os.path.isdir(self.output_dir):
+                        os.mkdir(self.output_dir)
+
                     file_name = (
-                        "output/"
+                        self.output_dir
+                        + "/"
                         + self.nerf.scene
                         + "_radius_"
                         + str(self.test_video_radius)
@@ -672,7 +699,9 @@ class GUI:
                         return
                     self.drawing = not self.drawing
 
-                dpg.add_checkbox(label="Draw", tag="checkbox_draw", callback=callback_draw)
+                dpg.add_checkbox(
+                    label="Draw", tag="checkbox_draw", callback=callback_draw
+                )
 
         with dpg.window(tag="primary_window", width=self.width, height=self.height):
             dpg.add_image("render_buffer")
@@ -744,7 +773,7 @@ class GUI:
 
                 if self.drawing:
                     self.camera.update()
-                    rgb=self.nerf.eval(self.camera.rays)
+                    rgb = self.nerf.eval(self.camera.rays)
                     dpg.set_value("render_buffer", rgb.cpu().numpy().reshape(-1))
 
             dpg.render_dearpygui_frame()
