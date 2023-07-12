@@ -1,6 +1,5 @@
 torch
 torchmetrics
-nerfacc
 opencv-python
 imageio
 imageio-ffmpeg
@@ -8,4 +7,6 @@ numpy
 tqdm
 scipy
 lpips
-# after automatic installation please manually execute pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+# after automatic installation please manually execute:
+# pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+# pip install git+https://github.com/KAIR-BAIR/nerfacc.git
