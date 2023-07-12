@@ -482,8 +482,8 @@ class InstantNGP:
         extras["num_samples"] = total_samples
 
         return (
-            rgb.view((*rays_shape[:-1], -1)),
-            opacity.view((*rays_shape[:-1], -1)),
-            depth.view((*rays_shape[:-1], -1)),
+            torch.clamp(rgb, min=0.0,max=1.0).view((*rays_shape[:-1], -1)),
+            torch.clamp(opacity, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),
+            torch.clamp(depth, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),
             extras,
         )
