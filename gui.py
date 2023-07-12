@@ -661,12 +661,12 @@ class GUI:
                         video_camera.walk(-self.test_video_radius)
                         video_camera.update()
 
-                        rgb = self.nerf.eval(video_camera.rays)
+                        rgb = self.nerf.eval(video_camera.rays).cpu()
                         rgbs.append(rgb)
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
 
-                    rgbs = (torch.stack(rgbs, 0).cpu().numpy() * 255).astype(np.uint8)
+                    rgbs = (torch.stack(rgbs, 0).numpy() * 255).astype(np.uint8)
                     imageio.mimwrite(
                         file_name + ".mp4",
                         rgbs,
@@ -790,18 +790,20 @@ class GUI:
 
             if self.start:
                 if self.training and step < self.nerf.max_steps:
-                    iters.append(step)
 
                     starter, ender = torch.cuda.Event(
                         enable_timing=True
                     ), torch.cuda.Event(enable_timing=True)
                     starter.record()
 
-                    losses.append(self.nerf.train(step))
+                    loss = self.nerf.train(step)
 
                     ender.record()
                     torch.cuda.synchronize()
                     training_time += int(starter.elapsed_time(ender))
+
+                    iters.append(step)
+                    losses.append(loss)
 
                     secs = training_time // 1000
                     m = secs // 60
@@ -821,6 +823,7 @@ class GUI:
                     plot_iters_right = step
                     plot_losses = losses[plot_iters_left:plot_iters_right]
                     dpg.set_axis_limits("iter_axis", plot_iters_left, plot_iters_right)
+
                     dpg.set_axis_limits("loss_axis", min(plot_losses), max(plot_losses))
 
                     if step >= self.nerf.max_steps:
@@ -832,7 +835,7 @@ class GUI:
 
                 if self.drawing:
                     self.camera.update()
-                    rgb = self.nerf.eval(self.camera.rays)
+                    rgb = self.nerf.draw(self.camera.rays)
                     dpg.set_value("render_buffer", rgb.cpu().numpy().reshape(-1))
 
             dpg.render_dearpygui_frame()
