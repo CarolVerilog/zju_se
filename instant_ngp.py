@@ -10,7 +10,7 @@ from torchmetrics.image import PeakSignalNoiseRatio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 import tqdm
 
-from ngp import NGPDensityField, NGPRadianceField
+from ngp import NGPRadianceField
 from datasets import DataLoader
 from utils import (
     Rays,
@@ -18,10 +18,7 @@ from utils import (
     namedtuple_map,
 )
 
-from nerfacc.estimators.prop_net import (
-    PropNetEstimator,
-    get_proposal_requires_grad_fn,
-)
+from nerfacc.estimators.occ_grid import OccGridEstimator
 
 from nerfacc.volrend import rendering
 
@@ -29,7 +26,7 @@ device = "cuda:0"
 set_random_seed(42)
 
 
-class NeRFacto:
+class InstantNGP:
     def __init__(self) -> None:
         # scene settings
         self.data_root = "data"
@@ -37,31 +34,43 @@ class NeRFacto:
         self.scene = "bicycle"
         self.factor = 4
         self.aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0])
+
+        # model settings
+        self.grid_resolution = 128
+        self.num_grid_levels = 4
+
         # train settings
         self.max_steps = 20000
         self.lr = 1e-2
         self.eps = 1e-15
         self.weight_decay = 0.0
-        self.train_num_rays = 4096
+        self.train_num_rays = 1024
+        self.train_target_sample_batch_size = 1 << 18
 
         self.train_num_samples = 48
-        self.train_num_samples_per_prop = [256, 96]
         self.train_near_plane = 0.2
-        self.train_far_plane = 1e3
+        self.train_far_plane = 1e10
+        self.train_render_step_size = 1e-3
+        self.train_alpha_thre = 1e-2
+        self.train_cone_angle = 0.004
 
         # test settings
         self.test_num_samples = 48
-        self.test_num_samples_per_prop = [256, 96]
         self.test_near_plane = 0.2
-        self.test_far_plane = 1e3
+        self.test_far_plane = 1e10
         self.test_chunk_size = 8192
+        self.test_render_step_size = 1e-3
+        self.test_alpha_thre = 1e-2
+        self.test_cone_angle = 0.004
 
-        # render settings
+        # draw settings
         self.draw_num_samples = 48
-        self.draw_num_samples_per_prop = [256, 96]
         self.draw_near_plane = 0.2
-        self.draw_far_plane = 1e3
+        self.draw_far_plane = 1e10
         self.draw_chunk_size = 8192
+        self.draw_render_step_size = 1e-3
+        self.draw_alpha_thre = 1e-2
+        self.draw_cone_angle = 0.004
 
         # metrics
         self.ssim = structural_similarity_index_measure
@@ -72,21 +81,6 @@ class NeRFacto:
         # dataset parameters
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": self.factor}
         test_dataset_kwargs = {"factor": self.factor}
-        # model parameters
-        self.proposal_networks = [
-            NGPDensityField(
-                aabb=self.aabb,
-                unbounded=True,
-                n_levels=5,
-                max_resolution=128,
-            ).to(device),
-            NGPDensityField(
-                aabb=self.aabb,
-                unbounded=True,
-                n_levels=5,
-                max_resolution=256,
-            ).to(device),
-        ]
 
         self.train_dataset = DataLoader(
             subject_id=self.scene,
@@ -107,35 +101,12 @@ class NeRFacto:
         )
 
         self.render_bkgd = self.test_dataset[0]["color_bkgd"]
-        # setup the radiance field we want to train.
-        self.prop_optimizer = torch.optim.Adam(
-            itertools.chain(
-                *[p.parameters() for p in self.proposal_networks],
-            ),
-            lr=self.lr,
-            eps=self.eps,
-            weight_decay=self.weight_decay,
-        )
-        self.prop_scheduler = torch.optim.lr_scheduler.ChainedScheduler(
-            [
-                torch.optim.lr_scheduler.LinearLR(
-                    self.prop_optimizer, start_factor=0.01, total_iters=100
-                ),
-                torch.optim.lr_scheduler.MultiStepLR(
-                    self.prop_optimizer,
-                    milestones=[
-                        self.max_steps // 2,
-                        self.max_steps * 3 // 4,
-                        self.max_steps * 9 // 10,
-                    ],
-                    gamma=0.33,
-                ),
-            ]
-        )
-        self.estimator = PropNetEstimator(self.prop_optimizer, self.prop_scheduler).to(
-            device
-        )
 
+        self.estimator = OccGridEstimator(
+            roi_aabb=self.aabb,
+            resolution=self.grid_resolution,
+            levels=self.num_grid_levels,
+        )
         self.grad_scaler = torch.cuda.amp.GradScaler(2**10)
         self.radiance_field = NGPRadianceField(aabb=self.aabb, unbounded=True).to(
             device
@@ -162,15 +133,12 @@ class NeRFacto:
                 ),
             ]
         )
-        self.proposal_requires_grad_fn = get_proposal_requires_grad_fn()
 
     def train(
         self,
         step,
     ):
         self.radiance_field.train()
-        for p in self.proposal_networks:
-            p.train()
         self.estimator.train()
 
         i = torch.randint(0, len(self.train_dataset), (1,)).item()
@@ -180,21 +148,37 @@ class NeRFacto:
         rays = data["rays"]
         pixels = data["pixels"]
 
-        proposal_requires_grad = self.proposal_requires_grad_fn(step)
         # render
         rgb, _, _, extras = self.render(
             rays,
             # rendering options
-            num_samples=self.train_num_samples,
-            num_samples_per_prop=self.train_num_samples_per_prop,
             near_plane=self.train_near_plane,
             far_plane=self.train_far_plane,
             render_bkgd=render_bkgd,
-            # train options
-            proposal_requires_grad=proposal_requires_grad,
+            render_step_size=self.train_render_step_size,
+            cone_angle=self.train_cone_angle,
+            alpha_thre=self.train_alpha_thre
         )
+
+        if extras["num_samples"] > 0:
+            return None
+
+        if self.train_target_sample_batch_size > 0:
+            num_rays = len(pixels)
+            num_rays = int(
+                num_rays * (self.train_target_sample_batch_size / float(extras["num_samples"]))
+            )
+            self.train_dataset.update_num_rays(num_rays)
+
+        def occ_eval_fn(x):
+            density = self.radiance_field.query_density(x)
+            return density * self.render_step_size
+
+        # update occupancy grid
         self.estimator.update_every_n_steps(
-            extras["trans"], proposal_requires_grad, loss_scaler=1024
+            step=step,
+            occ_eval_fn=occ_eval_fn,
+            occ_thre=1e-2,
         )
 
         # compute loss
@@ -211,17 +195,17 @@ class NeRFacto:
     @torch.no_grad()
     def eval(self, rays: Rays):
         self.radiance_field.eval()
-        for p in self.proposal_networks:
-            p.eval()
         self.estimator.eval()
 
         rgb, _, _, _ = self.render(
             rays,
-            num_samples=self.test_num_samples,
-            num_samples_per_prop=self.test_num_samples_per_prop,
             near_plane=self.test_near_plane,
             far_plane=self.test_far_plane,
             render_bkgd=self.render_bkgd,
+            chunk_size=self.test_chunk_size,
+            render_step_size=self.test_render_step_size,
+            cone_angle=self.test_cone_angle,
+            alpha_thre=self.test_alpha_thre,
         )
 
         return rgb
@@ -229,18 +213,17 @@ class NeRFacto:
     @torch.no_grad()
     def draw(self, rays: Rays):
         self.radiance_field.eval()
-        for p in self.proposal_networks:
-            p.eval()
         self.estimator.eval()
 
         rgb, _, _, _ = self.render(
             rays,
-            num_samples=self.draw_num_samples,
-            num_samples_per_prop=self.draw_num_samples_per_prop,
             near_plane=self.draw_near_plane,
             far_plane=self.draw_far_plane,
             render_bkgd=self.render_bkgd,
             chunk_size=self.draw_chunk_size,
+            render_step_size=self.draw_render_step_size,
+            cone_angle=self.draw_cone_angle,
+            alpha_thre=self.draw_alpha_thre,
         )
 
         return rgb
@@ -249,8 +232,6 @@ class NeRFacto:
     def test(self):
         # evaluation
         self.radiance_field.eval()
-        for p in self.proposal_networks:
-            p.eval()
         self.estimator.eval()
 
         ssims = []
@@ -273,12 +254,13 @@ class NeRFacto:
             ) = self.render(
                 rays,
                 # rendering options
-                num_samples=self.test_num_samples,
-                num_samples_per_prop=self.test_num_samples_per_prop,
                 near_plane=self.test_near_plane,
                 far_plane=self.test_far_plane,
                 render_bkgd=render_bkgd,
                 chunk_size=self.test_chunk_size,
+                render_step_size=self.test_render_step_size,
+                cone_angle=self.test_cone_angle,
+                alpha_thre=self.test_alpha_thre,
             )
 
             rgb = torch.permute(rgb, (2, 0, 1)).unsqueeze(0)
@@ -298,14 +280,13 @@ class NeRFacto:
         # scene
         rays: Rays,
         # rendering options
-        num_samples: int,
-        num_samples_per_prop: Sequence[int],
         near_plane: Optional[float] = None,
         far_plane: Optional[float] = None,
         render_bkgd: Optional[torch.Tensor] = None,
-        chunk_size: int = 8192,
-        # train options
-        proposal_requires_grad=False,
+        chunk_size: int = None,
+        render_step_size: int = 1e-3,
+        cone_angle: float = 0.004,
+        alpha_thre: float = 1e-2,
     ):
         """Render the pixels of an image."""
         rays_shape = rays.origins.shape
@@ -318,15 +299,14 @@ class NeRFacto:
         else:
             num_rays, _ = rays_shape
 
-        def prop_sigma_fn(t_starts, t_ends, proposal_network):
+        def sigma_fn(t_starts, t_ends):
             t_origins = chunk_rays.origins[..., None, :]
             t_dirs = chunk_rays.viewdirs[..., None, :]
             positions = t_origins + t_dirs * (t_starts + t_ends)[..., None] / 2.0
-            sigmas = proposal_network(positions)
-            sigmas[..., -1, :] = torch.inf
+            sigmas = self.radiance_field.query_density(positions)
             return sigmas.squeeze(-1)
 
-        def rgb_sigma_fn(t_starts, t_ends, ray_indices):
+        def rgb_sigma_fn(t_starts, t_ends):
             t_origins = chunk_rays.origins[..., None, :]
             t_dirs = chunk_rays.viewdirs[..., None, :].repeat_interleave(
                 t_starts.shape[-1], dim=-2
@@ -337,36 +317,34 @@ class NeRFacto:
             return rgb, sigmas.squeeze(-1)
 
         results = []
+        num_samples = 0
+
         chunk = (
-            torch.iinfo(torch.int32).max
-            if self.radiance_field.training
-            else chunk_size
+            torch.iinfo(torch.int32).max if chunk_size == None else chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-            t_starts, t_ends = self.estimator.sampling(
-                prop_sigma_fns=[
-                    lambda *args: prop_sigma_fn(*args, p)
-                    for p in self.proposal_networks
-                ],
-                prop_samples=num_samples_per_prop,
-                num_samples=num_samples,
-                n_rays=chunk_rays.origins.shape[0],
+            ray_indices, t_starts, t_ends = self.estimator.sampling(
+                rays_o=rays.origins,
+                rays_d=rays.viewdirs,
+                sigma_fn=sigma_fn,
                 near_plane=near_plane,
                 far_plane=far_plane,
-                stratified=self.radiance_field.training,
-                requires_grad=proposal_requires_grad,
+                render_step_size=render_step_size,
+                cone_angle=cone_angle,
+                alpha_thre=alpha_thre,
             )
             rgb, opacity, depth, extras = rendering(
                 t_starts,
                 t_ends,
-                ray_indices=None,
-                n_rays=None,
+                ray_indices=ray_indices,
+                n_rays=chunk_rays.origins.shape[0],
                 rgb_sigma_fn=rgb_sigma_fn,
                 render_bkgd=render_bkgd,
             )
             chunk_results = [rgb, opacity, depth]
             results.append(chunk_results)
+            num_samples += len(t_starts)
 
         colors, opacities, depths = collate(
             results,
@@ -375,6 +353,8 @@ class NeRFacto:
                 torch.Tensor: lambda x, **_: torch.cat(x, 0),
             },
         )
+
+        extras["num_samples"] = num_samples
 
         return (
             torch.clamp(colors, min=0.0, max=1.0).view((*rays_shape[:-1], -1)),

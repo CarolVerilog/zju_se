@@ -13,7 +13,7 @@ import imageio
 import tqdm
 
 from utils import Rays
-from nerfacto import NeRFacto
+from instant_ngp import InstantNGP
 
 device = "cuda:0"
 identity = (
@@ -135,7 +135,7 @@ class Camera:
 
 class GUI:
     def __init__(self, width, height) -> None:
-        self.nerf = NeRFacto()
+        self.nerf = InstantNGP()
         self.width = width
         self.height = height
         self.camera = Camera(self.width, self.height)
@@ -301,10 +301,30 @@ class GUI:
                     self.nerf.factor = appdata
 
                 dpg.add_input_int(
-                    label="factor",
+                    label="Factor",
                     tag="factor",
                     default_value=self.nerf.factor,
                     callback=callback_factor,
+                )
+
+                def callback_grid_resolution(sender, appdata):
+                    self.nerf.grid_resolution = appdata
+
+                dpg.add_input_int(
+                    label="Grid resolution",
+                    tag="grid_resolution",
+                    default_value=self.nerf.grid_resolution,
+                    callback=callback_grid_resolution
+                )
+
+                def callback_num_grid_levels(sender, appdata):
+                    self.nerf.num_grid_levels = appdata
+
+                dpg.add_input_int(
+                    label="Grid levels",
+                    tag="grid_levels",
+                    default_value=self.nerf.num_grid_levels,
+                    callback=callback_num_grid_levels
                 )
 
                 def callback_max_steps(sender, appdata):
@@ -358,6 +378,16 @@ class GUI:
                     callback=callback_train_num_rays,
                 )
 
+                def callback_train_target_sample_batch_size(sender, appdata):
+                    self.nerf.train_target_sample_batch_size = appdata
+
+                dpg.add_input_int(
+                    label="Sample batch size",
+                    tag="train_target_sample_batch_size",
+                    default_value=self.nerf.train_target_sample_batch_size,
+                    callback=callback_train_target_sample_batch_size,
+                )
+
                 def callback_train_num_samples(sender, appdata):
                     self.nerf.train_num_samples = appdata
 
@@ -366,26 +396,6 @@ class GUI:
                     tag="train_num_samples",
                     default_value=self.nerf.train_num_samples,
                     callback=callback_train_num_samples,
-                )
-
-                def callback_train_num_samples_prop0(sender, appdata):
-                    self.nerf.train_num_samples_per_prop[0] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 0 samples",
-                    tag="train_num_samples_prop0",
-                    default_value=self.nerf.train_num_samples_per_prop[0],
-                    callback=callback_train_num_samples_prop0,
-                )
-
-                def callback_train_num_samples_prop1(sender, appdata):
-                    self.nerf.train_num_samples_per_prop[1] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 1 samples",
-                    tag="train_num_samples_prop1",
-                    default_value=self.nerf.train_num_samples_per_prop[1],
-                    callback=callback_train_num_samples_prop1,
                 )
 
                 def callback_train_near_plane(sender, appdata):
@@ -406,6 +416,36 @@ class GUI:
                     tag="train_far_plane",
                     default_value=self.nerf.train_far_plane,
                     callback=callback_train_far_plane,
+                )
+
+                def callback_train_render_step_size(sender, appdata):
+                    self.nerf.train_render_step_size = appdata
+
+                dpg.add_input_float(
+                    label="Render step size",
+                    tag="train_render_step_size",
+                    default_value=self.nerf.train_render_step_size,
+                    callback=callback_train_render_step_size
+                )
+
+                def callback_train_alpha_thre(sender, appdata):
+                    self.nerf.train_alpha_thre = appdata
+
+                dpg.add_input_float(
+                    label="Alpha threshold",
+                    tag="train_alpha_thre",
+                    default_value=self.nerf.train_alpha_thre,
+                    callback=callback_train_alpha_thre
+                )
+
+                def callback_train_cone_angle(sender, appdata):
+                    self.nerf.train_cone_angle = appdata
+
+                dpg.add_input_float(
+                    label="Cone angle",
+                    tag="train_cone_angle",
+                    default_value=self.nerf.train_cone_angle,
+                    callback=callback_train_cone_angle
                 )
 
                 def callback_train(sender, app_data):
@@ -509,26 +549,6 @@ class GUI:
                     callback=callback_test_num_samples,
                 )
 
-                def callback_test_num_samples_prop0(sender, appdata):
-                    self.nerf.test_num_samples_per_prop[0] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 0 samples",
-                    tag="test_num_samples_prop0",
-                    default_value=self.nerf.test_num_samples_per_prop[0],
-                    callback=callback_test_num_samples_prop0,
-                )
-
-                def callback_test_num_samples_prop1(sender, appdata):
-                    self.nerf.test_num_samples_per_prop[1] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 1 samples",
-                    tag="test_num_samples_prop1",
-                    default_value=self.nerf.test_num_samples_per_prop[1],
-                    callback=callback_test_num_samples_prop1,
-                )
-
                 def callback_test_near_plane(sender, appdata):
                     self.nerf.test_near_plane = appdata
 
@@ -557,6 +577,36 @@ class GUI:
                     tag="test_chunk_size",
                     default_value=self.nerf.test_chunk_size,
                     callback=callback_test_chunk_size,
+                )
+
+                def callback_test_render_step_size(sender, appdata):
+                    self.nerf.test_render_step_size = appdata
+
+                dpg.add_input_float(
+                    label="Render step size",
+                    tag="test_render_step_size",
+                    default_value=self.nerf.test_render_step_size,
+                    callback=callback_test_render_step_size
+                )
+
+                def callback_test_alpha_thre(sender, appdata):
+                    self.nerf.test_alpha_thre = appdata
+
+                dpg.add_input_float(
+                    label="Alpha threshold",
+                    tag="test_alpha_thre",
+                    default_value=self.nerf.test_alpha_thre,
+                    callback=callback_test_alpha_thre
+                )
+
+                def callback_test_cone_angle(sender, appdata):
+                    self.nerf.test_cone_angle = appdata
+
+                dpg.add_input_float(
+                    label="Cone angle",
+                    tag="test_cone_angle",
+                    default_value=self.nerf.test_cone_angle,
+                    callback=callback_test_cone_angle
                 )
 
                 def callback_test(sender, app_data):
@@ -644,26 +694,6 @@ class GUI:
                     callback=callback_draw_num_samples,
                 )
 
-                def callback_draw_num_samples_prop0(sender, appdata):
-                    self.nerf.draw_num_samples_per_prop[0] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 0 samples",
-                    tag="draw_num_samples_prop0",
-                    default_value=self.nerf.draw_num_samples_per_prop[0],
-                    callback=callback_draw_num_samples_prop0,
-                )
-
-                def callback_draw_num_samples_prop1(sender, appdata):
-                    self.nerf.draw_num_samples_per_prop[1] = appdata
-
-                dpg.add_input_int(
-                    label="Prop 1 samples",
-                    tag="draw_num_samples_prop1",
-                    default_value=self.nerf.draw_num_samples_per_prop[1],
-                    callback=callback_draw_num_samples_prop1,
-                )
-
                 def callback_draw_near_plane(sender, appdata):
                     self.nerf.draw_near_plane = appdata
 
@@ -692,6 +722,36 @@ class GUI:
                     tag="draw_chunk_size",
                     default_value=self.nerf.draw_chunk_size,
                     callback=callback_draw_chunk_size,
+                )
+
+                def callback_draw_render_step_size(sender, appdata):
+                    self.nerf.draw_render_step_size = appdata
+
+                dpg.add_input_float(
+                    label="Render step size",
+                    tag="draw_render_step_size",
+                    default_value=self.nerf.draw_render_step_size,
+                    callback=callback_draw_render_step_size
+                )
+
+                def callback_draw_alpha_thre(sender, appdata):
+                    self.nerf.draw_alpha_thre = appdata
+
+                dpg.add_input_float(
+                    label="Alpha threshold",
+                    tag="draw_alpha_thre",
+                    default_value=self.nerf.draw_alpha_thre,
+                    callback=callback_draw_alpha_thre
+                )
+
+                def callback_draw_cone_angle(sender, appdata):
+                    self.nerf.draw_cone_angle = appdata
+
+                dpg.add_input_float(
+                    label="Cone angle",
+                    tag="draw_cone_angle",
+                    default_value=self.nerf.draw_cone_angle,
+                    callback=callback_draw_cone_angle
                 )
 
                 def callback_draw(sender, appdata):
