@@ -28,7 +28,6 @@ from nerfacc.volrend import rendering
 device = "cuda:0"
 set_random_seed(42)
 
-
 def distortion_loss(weights, t_starts, t_ends, near, far):
     # restore to the results of sampling 1/x
     recip_near = 1 / near
@@ -39,8 +38,16 @@ def distortion_loss(weights, t_starts, t_ends, near, far):
     t_mids = (t_ends + t_starts) / 2
     t_vals = t_ends - t_starts
 
-    loss = weights * torch.sum(weights[...,None,:] * torch.abs(t_mids[..., :, None] - t_mids[..., None, :]), dim=-1)
-    loss += weights ** 2 * t_vals / 3
+    loss = torch.sum(
+        weights
+        * torch.sum(
+            weights[..., None, :]
+            * torch.abs(t_mids[..., :, None] - t_mids[..., None, :]),
+            dim=-1,
+        ),
+        dim=-1,
+    )
+    loss += torch.sum(weights**2 * t_vals / 3, dim=-1)
 
     return torch.mean(loss)
 
