@@ -29,6 +29,22 @@ device = "cuda:0"
 set_random_seed(42)
 
 
+def distortion_loss(weights, t_starts, t_ends, near, far):
+    # restore to the results of sampling 1/x
+    recip_near = 1 / near
+    recip_far = 1 / far
+    t_starts = (1 / t_starts - recip_near) / (recip_far - recip_near)
+    t_ends = (1 / t_ends - recip_near) / (recip_far - recip_near)
+
+    t_mids = (t_ends + t_starts) / 2
+    t_vals = t_ends - t_starts
+
+    loss = weights * torch.sum(weights[...,None,:] * torch.abs(t_mids[..., :, None] - t_mids[..., None, :]), dim=-1)
+    loss += weights ** 2 * t_vals / 3
+
+    return torch.mean(loss)
+
+
 class DistortionNGP:
     def __init__(self) -> None:
         # scene settings
@@ -198,7 +214,7 @@ class DistortionNGP:
         )
 
         # compute loss
-        loss = F.smooth_l1_loss(rgb, pixels)
+        loss = F.smooth_l1_loss(rgb, pixels) + 0.002 * extras["distortion_loss"]
 
         self.optimizer.zero_grad()
         # do not unscale it because we are using Adam.
@@ -338,9 +354,7 @@ class DistortionNGP:
 
         results = []
         chunk = (
-            torch.iinfo(torch.int32).max
-            if self.radiance_field.training
-            else chunk_size
+            torch.iinfo(torch.int32).max if self.radiance_field.training else chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
@@ -367,6 +381,9 @@ class DistortionNGP:
             )
             chunk_results = [rgb, opacity, depth]
             results.append(chunk_results)
+            extras["distortion_loss"] = distortion_loss(
+                extras["weights"], t_starts, t_ends, near_plane, far_plane
+            )
 
         colors, opacities, depths = collate(
             results,
