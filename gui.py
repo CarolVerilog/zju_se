@@ -301,7 +301,7 @@ class GUI:
                     self.nerf.factor = appdata
 
                 dpg.add_input_int(
-                    label="factor",
+                    label="Factor",
                     tag="factor",
                     default_value=self.nerf.factor,
                     callback=callback_factor,
@@ -611,12 +611,12 @@ class GUI:
                         video_camera.walk(-self.test_video_radius)
                         video_camera.update()
 
-                        rgb = self.nerf.eval(video_camera.rays)
+                        rgb = self.nerf.eval(video_camera.rays).cpu()
                         rgbs.append(rgb)
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
 
-                    rgbs = (torch.stack(rgbs, 0).cpu().numpy() * 255).astype(np.uint8)
+                    rgbs = (torch.stack(rgbs, 0).numpy() * 255).astype(np.uint8)
                     imageio.mimwrite(
                         file_name + ".mp4",
                         rgbs,
