@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
-from torchmetrics.functional import structural_similarity_index_measure
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 from torchmetrics.image import PeakSignalNoiseRatio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 import tqdm
@@ -64,7 +64,7 @@ class DistortionNGP:
         self.draw_chunk_size = 8192
 
         # metrics
-        self.ssim = structural_similarity_index_measure
+        self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
         self.psnr = PeakSignalNoiseRatio(data_range=1.0).to(device)
         self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True).to(device)
 
