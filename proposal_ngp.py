@@ -29,7 +29,7 @@ device = "cuda:0"
 set_random_seed(42)
 
 
-class NeRFacto:
+class ProposalNGP:
     def __init__(self) -> None:
         # scene settings
         self.data_root = "data"

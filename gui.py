@@ -13,7 +13,7 @@ import imageio
 import tqdm
 
 from utils import Rays
-from nerfacto import NeRFacto
+from proposal_ngp import ProposalNGP
 
 device = "cuda:0"
 identity = (
@@ -135,7 +135,7 @@ class Camera:
 
 class GUI:
     def __init__(self, width, height) -> None:
-        self.nerf = NeRFacto()
+        self.nerf = ProposalNGP()
         self.width = width
         self.height = height
         self.camera = Camera(self.width, self.height)
