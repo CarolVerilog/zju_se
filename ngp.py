@@ -23,7 +23,7 @@ class TruncExp(Function):
 
 
 _trunc_exp = TruncExp.apply
-trunc_exp = lambda x: _trunc_exp(x-1)
+trunc_exp = lambda x: _trunc_exp(x - 1)
 
 
 def contract_to_unisphere(
@@ -135,9 +135,7 @@ class NGPRadianceField(torch.nn.Module):
         density_before_activation, base_mlp_out = torch.split(
             x, [1, self.geo_feat_dim], dim=-1
         )
-        density = (
-            trunc_exp(density_before_activation) * selector[..., None]
-        )
+        density = trunc_exp(density_before_activation) * selector[..., None]
         if return_feat:
             return density, base_mlp_out
         else:
@@ -220,7 +218,5 @@ class NGPDensityField(torch.nn.Module):
             .view(list(positions.shape[:-1]) + [1])
             .to(positions)
         )
-        density = (
-            trunc_exp(density_before_activation) * selector[..., None]
-        )
+        density = trunc_exp(density_before_activation) * selector[..., None]
         return density

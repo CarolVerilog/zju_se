@@ -334,9 +334,7 @@ class ProposalNGP:
 
         results = []
         chunk = (
-            torch.iinfo(torch.int32).max
-            if self.radiance_field.training
-            else chunk_size
+            torch.iinfo(torch.int32).max if self.radiance_field.training else chunk_size
         )
         for i in range(0, num_rays, chunk):
             chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
