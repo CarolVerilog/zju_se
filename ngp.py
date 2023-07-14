@@ -11,19 +11,18 @@ import tinycudann as tcnn
 class TruncExp(Function):
     @staticmethod
     @custom_fwd(cast_inputs=torch.float32)
-    def forward(ctx, x):  # pylint: disable=arguments-differ
+    def forward(ctx, x):
         ctx.save_for_backward(x)
         return torch.exp(x)
 
     @staticmethod
     @custom_bwd
-    def backward(ctx, g):  # pylint: disable=arguments-differ
+    def backward(ctx, g):
         x = ctx.saved_tensors[0]
         return g * torch.exp(torch.clamp(x, max=15))
 
 
-_trunc_exp = TruncExp.apply
-trunc_exp = lambda x: _trunc_exp(x - 1)
+trunc_exp = lambda x: TruncExp.apply(x - 1)
 
 
 def contract_to_unisphere(
