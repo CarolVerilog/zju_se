@@ -588,12 +588,7 @@ class GUI:
                     )
                     json_data = {}
 
-                    try:
-                        ssim, psnr, lpips = self.nerf.test()
-                    except:
-                        dpg.configure_item("modal", show=False)
-                        return
-
+                    ssim, psnr, lpips = self.nerf.test()
                     json_data["ssim"] = ssim
                     json_data["psnr"] = psnr
                     json_data["lpips"] = lpips
@@ -616,12 +611,7 @@ class GUI:
                         video_camera.walk(-self.test_video_radius)
                         video_camera.update()
 
-                        try:
-                            rgb = self.nerf.eval(video_camera.rays).cpu()
-                        except:
-                            dpg.configure_item("modal", show=False)
-                            return
-
+                        rgb = self.nerf.eval(video_camera.rays).cpu()
                         rgbs.append(rgb)
                         video_camera.walk(self.test_video_radius)
                         video_camera.pitch(-self.test_video_pitch)
