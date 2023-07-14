@@ -708,7 +708,7 @@ class GUI:
             dpg.set_primary_window("primary_window", True)
 
         dpg.create_viewport(
-            title="nerfacto",
+            title="NeRF",
             width=self.width,
             height=self.height,
             resizable=False,
