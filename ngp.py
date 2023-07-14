@@ -111,7 +111,7 @@ class NGPRadianceField(torch.nn.Module):
         )
         self.mlp_head = tcnn.Network(
             n_input_dims=(
-                (self.direction_encoding.n_output_dims if self.use_viewdirs else 0)
+                self.direction_encoding.n_output_dims
                 + self.geo_feat_dim
             ),
             n_output_dims=3,
