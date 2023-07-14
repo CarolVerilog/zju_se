@@ -1,7 +1,6 @@
 import itertools
 from typing import Optional, Sequence
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
