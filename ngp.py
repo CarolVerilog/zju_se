@@ -1,5 +1,3 @@
-from typing import Callable, List, Union
-
 import numpy as np
 import torch
 from torch.autograd import Function
@@ -28,7 +26,7 @@ trunc_exp = lambda x: TruncExp.apply(x - 1)
 def contract_to_unisphere(
     x: torch.Tensor,
     aabb: torch.Tensor,
-    ord: Union[str, int] = 2,
+    ord: int = 2,
 ):
     aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
     x = (x - aabb_min) / (aabb_max - aabb_min)
