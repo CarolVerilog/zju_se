@@ -28,6 +28,7 @@ from nerfacc.volrend import rendering
 device = "cuda:0"
 set_random_seed(42)
 
+
 def distortion_loss(weights, t_starts, t_ends, near, far):
     # restore to the results of sampling 1/x
     recip_near = 1 / near

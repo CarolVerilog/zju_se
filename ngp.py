@@ -111,10 +111,7 @@ class NGPRadianceField(torch.nn.Module):
             },
         )
         self.mlp_head = tcnn.Network(
-            n_input_dims=(
-                self.direction_encoding.n_output_dims
-                + self.geo_feat_dim
-            ),
+            n_input_dims=(self.direction_encoding.n_output_dims + self.geo_feat_dim),
             n_output_dims=3,
             network_config={
                 "otype": "FullyFusedMLP",
@@ -136,9 +133,7 @@ class NGPRadianceField(torch.nn.Module):
         density_before_activation, base_mlp_out = torch.split(
             x, [1, self.geo_feat_dim], dim=-1
         )
-        density = (
-            trunc_exp(density_before_activation) * selector[..., None]
-        )
+        density = trunc_exp(density_before_activation) * selector[..., None]
         if return_feat:
             return density, base_mlp_out
         else:
@@ -214,7 +209,5 @@ class NGPDensityField(torch.nn.Module):
             .view(list(positions.shape[:-1]) + [1])
             .to(positions)
         )
-        density = (
-            trunc_exp(density_before_activation) * selector[..., None]
-        )
+        density = trunc_exp(density_before_activation) * selector[..., None]
         return density
