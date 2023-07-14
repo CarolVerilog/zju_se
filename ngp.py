@@ -144,6 +144,7 @@ class NGPRadianceField(torch.nn.Module):
         d = self.direction_encoding(dir.reshape(-1, dir.shape[-1]))
         h = torch.cat([d, embedding.reshape(-1, self.geo_feat_dim)], dim=-1)
         rgb = self.mlp_head(h).reshape(list(embedding.shape[:-1]) + [3]).to(embedding)
+        rgb = torch.sigmoid(rgb)
         return rgb
 
     def forward(
