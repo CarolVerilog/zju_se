@@ -1,7 +1,5 @@
-import itertools
-from typing import Optional, Sequence, Literal
+from typing import Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
@@ -112,7 +110,7 @@ class InstantNGP:
             levels=self.num_grid_levels,
         ).to(device)
         self.grad_scaler = torch.cuda.amp.GradScaler(2**10)
-        self.radiance_field = NGPRadianceField(aabb=self.aabb, unbounded=True).to(
+        self.radiance_field = NGPRadianceField(aabb=self.estimator.aabbs[-1]).to(
             device
         )
         self.optimizer = torch.optim.Adam(
@@ -185,11 +183,9 @@ class InstantNGP:
             )
             self.train_dataset.update_num_rays(num_rays)
 
-        # compute loss
         loss = F.smooth_l1_loss(rgb, pixels)
 
         self.optimizer.zero_grad()
-        # do not unscale it because we are using Adam.
         self.grad_scaler.scale(loss).backward()
         self.optimizer.step()
         self.scheduler.step()
@@ -247,7 +243,6 @@ class InstantNGP:
             rays = data["rays"]
             pixels = data["pixels"].to(device)
 
-            # rendering
             (
                 rgb,
                 _,
@@ -255,7 +250,6 @@ class InstantNGP:
                 _,
             ) = self.render_image(
                 rays,
-                # rendering options
                 near_plane=self.test_near_plane,
                 far_plane=self.test_far_plane,
                 render_bkgd=render_bkgd,
@@ -278,9 +272,7 @@ class InstantNGP:
 
     def render(
         self,
-        # scene
         rays: Rays,
-        # rendering options
         near_plane: Optional[float] = None,
         far_plane: Optional[float] = None,
         render_bkgd: Optional[torch.Tensor] = None,
@@ -289,7 +281,6 @@ class InstantNGP:
         cone_angle: float = 0.004,
         alpha_thre: float = 1e-2,
     ):
-        """Render the pixels of an image."""
         rays_shape = rays.origins.shape
         num_rays, _ = rays_shape
 
@@ -405,7 +396,6 @@ class InstantNGP:
             if n_alive == 0:
                 break
 
-            # the number of samples to add on each ray
             n_samples = max(min(num_rays // n_alive, 64), min_samples)
             iter_samples += n_samples
 
