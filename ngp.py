@@ -76,20 +76,19 @@ class NGPRadianceField(torch.nn.Module):
             (np.log(max_resolution) - np.log(base_resolution)) / (n_levels - 1)
         ).tolist()
 
-        if self.use_viewdirs:
-            self.direction_encoding = tcnn.Encoding(
-                n_input_dims=num_dim,
-                encoding_config={
-                    "otype": "Composite",
-                    "nested": [
-                        {
-                            "n_dims_to_encode": 3,
-                            "otype": "SphericalHarmonics",
-                            "degree": 4,
-                        },
-                    ],
-                },
-            )
+        self.direction_encoding = tcnn.Encoding(
+            n_input_dims=num_dim,
+            encoding_config={
+                "otype": "Composite",
+                "nested": [
+                    {
+                        "n_dims_to_encode": 3,
+                        "otype": "SphericalHarmonics",
+                        "degree": 4,
+                    },
+                ],
+            },
+        )
 
         self.mlp_base = tcnn.NetworkWithInputEncoding(
             n_input_dims=num_dim,
