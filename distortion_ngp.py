@@ -1,5 +1,5 @@
 import itertools
-from typing import Optional, Sequence, Literal
+from typing import Optional, Sequence
 
 import numpy as np
 import torch
@@ -99,13 +99,11 @@ class DistortionNGP:
         self.proposal_networks = [
             NGPDensityField(
                 aabb=self.aabb,
-                unbounded=True,
                 n_levels=5,
                 max_resolution=128,
             ).to(device),
             NGPDensityField(
                 aabb=self.aabb,
-                unbounded=True,
                 n_levels=5,
                 max_resolution=256,
             ).to(device),
@@ -160,9 +158,7 @@ class DistortionNGP:
         )
 
         self.grad_scaler = torch.cuda.amp.GradScaler(2**10)
-        self.radiance_field = NGPRadianceField(aabb=self.aabb, unbounded=True).to(
-            device
-        )
+        self.radiance_field = NGPRadianceField(aabb=self.aabb).to(device)
         self.optimizer = torch.optim.Adam(
             self.radiance_field.parameters(),
             lr=self.lr,
