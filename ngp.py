@@ -143,12 +143,9 @@ class NGPRadianceField(torch.nn.Module):
 
     def query_rgb(self, dir, embedding, apply_act: bool = True):
         # tcnn requires directions in the range [0, 1]
-        if self.use_viewdirs:
-            dir = (dir + 1.0) / 2.0
-            d = self.direction_encoding(dir.reshape(-1, dir.shape[-1]))
-            h = torch.cat([d, embedding.reshape(-1, self.geo_feat_dim)], dim=-1)
-        else:
-            h = embedding.reshape(-1, self.geo_feat_dim)
+        dir = (dir + 1.0) / 2.0
+        d = self.direction_encoding(dir.reshape(-1, dir.shape[-1]))
+        h = torch.cat([d, embedding.reshape(-1, self.geo_feat_dim)], dim=-1)
         rgb = self.mlp_head(h).reshape(list(embedding.shape[:-1]) + [3]).to(embedding)
         if apply_act:
             rgb = torch.sigmoid(rgb)
@@ -159,12 +156,8 @@ class NGPRadianceField(torch.nn.Module):
         positions: torch.Tensor,
         directions: torch.Tensor = None,
     ):
-        if self.use_viewdirs and (directions is not None):
-            assert (
-                positions.shape == directions.shape
-            ), f"{positions.shape} v.s. {directions.shape}"
-            density, embedding = self.query_density(positions, return_feat=True)
-            rgb = self.query_rgb(directions, embedding=embedding)
+        density, embedding = self.query_density(positions, return_feat=True)
+        rgb = self.query_rgb(directions, embedding=embedding)
         return rgb, density  # type: ignore
 
 
