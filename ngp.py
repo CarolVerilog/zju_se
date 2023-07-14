@@ -30,8 +30,6 @@ def contract_to_unisphere(
     x: torch.Tensor,
     aabb: torch.Tensor,
     ord: Union[str, int] = 2,
-    eps: float = 1e-6,
-    derivative: bool = False,
 ):
     aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
     x = (x - aabb_min) / (aabb_max - aabb_min)
@@ -39,17 +37,9 @@ def contract_to_unisphere(
     mag = torch.linalg.norm(x, ord=ord, dim=-1, keepdim=True)
     mask = mag.squeeze(-1) > 1
 
-    if derivative:
-        dev = (2 * mag - 1) / mag**2 + 2 * x**2 * (
-            1 / mag**3 - (2 * mag - 1) / mag**4
-        )
-        dev[~mask] = 1.0
-        dev = torch.clamp(dev, min=eps)
-        return dev
-    else:
-        x[mask] = (2 - 1 / mag[mask]) * (x[mask] / mag[mask])
-        x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
-        return x
+    x[mask] = (2 - 1 / mag[mask]) * (x[mask] / mag[mask])
+    x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
+    return x
 
 
 class NGPRadianceField(torch.nn.Module):
@@ -124,16 +114,16 @@ class NGPRadianceField(torch.nn.Module):
             },
         )
 
-    def query_density(self, x, return_feat: bool = False):
-        x = contract_to_unisphere(x, self.aabb)
-        selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
-        x = (
-            self.mlp_base(x.view(-1, self.num_dim))
-            .view(list(x.shape[:-1]) + [1 + self.geo_feat_dim])
-            .to(x)
+    def query_density(self, positions, return_feat: bool = False):
+        positions = contract_to_unisphere(positions, self.aabb)
+        selector = ((positions > 0.0) & (positions < 1.0)).all(dim=-1)
+        positions = (
+            self.mlp_base(positions.view(-1, self.num_dim))
+            .view(list(positions.shape[:-1]) + [1 + self.geo_feat_dim])
+            .to(positions)
         )
         density_before_activation, base_mlp_out = torch.split(
-            x, [1, self.geo_feat_dim], dim=-1
+            positions, [1, self.geo_feat_dim], dim=-1
         )
         density = trunc_exp(density_before_activation) * selector[..., None]
         if return_feat:
