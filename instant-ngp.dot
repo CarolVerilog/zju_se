@@ -1,0 +1,24 @@
+digraph G {
+    splines="FALSE";
+
+    occ_pre [label="",width=0,height=0,style="invis"]
+    occ [label="occlusion grid\n sampler", shape="square", style="filled",fillcolor="cornflowerblue", fontcolor="white"]
+    hash [label="hash encoder", shape="square", style="filled", fillcolor="coral", fontcolor="white"]
+    sh_pre [label="",width=0,height=0,shape="square"]
+    sh [label="SH encoder", shape="square", style="filled", fillcolor="coral", fontcolor="white"]
+    mlp_base [label="MLP base",shape="square", style="filled", fillcolor="darkslategray", fontcolor="white"]
+    mlp_head [label="MLP head",shape="square", style="filled", fillcolor="darkslategray", fontcolor="white"]
+    mlp_base_suc [label="",width=0,height=0,shape="square"]
+    mlp_head_suc [label="",width=0,height=0,shape="square"]
+
+
+    occ_pre->occ[label="origin,\nview direction"]
+    occ->hash[label="position"]
+    sh_pre->sh[label="view direction"]
+    sh->mlp_head[label="encoded view"]
+    hash->mlp_base [label="encoded position"]
+    mlp_base->mlp_head [label="geometry\nfeatures"]
+    mlp_base->mlp_base_suc [label="density"]
+    mlp_head->mlp_head_suc [label="radiance"]
+
+}
